@@ -102,11 +102,20 @@ export class TasksService {
     return result.Items || [];
   }
 
-  async findOne(taskId: string) {
+  async findOne(taskId: string, user?: AuthUser) {
     const result = await this.dynamo.send(
       new GetCommand({ TableName: this.tableName, Key: { taskId } }),
     );
     if (!result.Item) throw new NotFoundException(`Task ${taskId} not found`);
+
+    // Enforce team isolation for employees
+    if (user && user.role === 'employee' && user.teamId) {
+      const itemTeam = result.Item.teamId as string | undefined;
+      if (itemTeam && itemTeam !== user.teamId) {
+        throw new ForbiddenException('You are not authorized to access this task');
+      }
+    }
+
     return result.Item;
   }
 

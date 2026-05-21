@@ -26,7 +26,7 @@ export class CommentsController {
   }
 
   @Get()
-  findByTask(@Param('taskId') taskId: string) {
-    return this.commentsService.findByTask(taskId);
+  findByTask(@Param('taskId') taskId: string, @CurrentUser() user: AuthUser) {
+    return this.commentsService.findByTask(taskId, user);
   }
 }

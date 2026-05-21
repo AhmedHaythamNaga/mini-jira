@@ -9,10 +9,10 @@ import { Public } from './decorators/public.decorator';
 
 class LoginDto {
   @IsString()
-  email: string;
+  email!: string;
 
   @IsString()
-  password: string;
+  password!: string;
 }
 
 @Controller('auth')

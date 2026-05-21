@@ -17,9 +17,9 @@ const sns = new SNSClient({
 export async function publishTaskAssignment(
   taskData: TaskAssignment,
 ): Promise<PublishCommandOutput> {
-  const topicArn = process.env.SNS_TOPIC_ARN;
+  const topicArn = process.env.SNS_TASK_ASSIGNMENT_TOPIC_ARN || process.env.SNS_TOPIC_ARN;
   if (!topicArn) {
-    throw new Error('SNS_TOPIC_ARN is not defined');
+    throw new Error('SNS_TASK_ASSIGNMENT_TOPIC_ARN is not defined');
   }
 
   const command = new PublishCommand({
