@@ -8,8 +8,8 @@
       "allowSyntheticDefaultImports": true,
       "target": "ES2021",
       "sourceMap": true,
+      "rootDir": "./src",
       "outDir": "./dist",
-      "baseUrl": "./",
       "incremental": true,
       "skipLibCheck": true,
       "types": ["node"],
@@ -18,9 +18,6 @@
       "strictBindCallApply": false,
       "forceConsistentCasingInFileNames": false,
       "noFallthroughCasesInSwitch": false,
-      "paths": {
-        "@/*": ["src/*"]
-      }
     },
     "include": ["src/**/*"],
     "exclude": ["node_modules", "dist"]

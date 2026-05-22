@@ -2,6 +2,11 @@
 node_modules/
 /dist/
 /build/
+backend/dist/
+backend/dist2/
+frontend/.next/
+frontend/out/
+*.tsbuildinfo
 
 # Logs
 logs
