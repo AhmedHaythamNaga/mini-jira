@@ -31,6 +31,7 @@ This guide walks you through deploying the Mini-Jira backend to AWS. Every click
    - **Auto-assign public IP**: select **Disable** (it's in a private subnet)
    - **Firewall (security groups)**: select **Select existing security group**
    - Check the box next to **EC2-SG** (the one that allows port 3000 from ALB-SG only)
+   - Important: the private subnet must have outbound internet via a **NAT gateway** (or you must use a pre-baked AMI). The user-data script below downloads Node.js, PM2, and your repo from the internet; without egress, the app will never start and `curl http://localhost:3000/api/health` will fail with connection refused.
 9. **Advanced details** (click to expand):
    - **IAM instance profile**: select the **EC2 Role** you created in Phase 1 (the one with DynamoDB, S3, SNS, CloudWatch, Cognito permissions)
    - Scroll down to **User data** — paste this script:
@@ -38,6 +39,11 @@ This guide walks you through deploying the Mini-Jira backend to AWS. Every click
 ```bash
 #!/bin/bash
 set -e
+
+LOG_FILE=/var/log/mini-jira-bootstrap.log
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+echo "Starting Mini-Jira bootstrap at $(date)"
 
 # Install Node.js 20
 curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
@@ -53,12 +59,20 @@ cd /home/ec2-user/app
 # Clone your repo (REPLACE with your actual repo URL)
 git clone -b ahmed https://github.com/AhmedHaythamNaga/mini-jira.git .
 
+chown -R ec2-user:ec2-user /home/ec2-user/app
+
 # Go to backend
 cd backend
 
 # Install dependencies and build
 npm ci
 npm run build
+
+# The dist/ folder is intentionally gitignored; it is generated here on the EC2 instance.
+test -f dist/main.js
+
+# Make sure the runtime user owns the generated build
+chown -R ec2-user:ec2-user /home/ec2-user/app/backend
 
 # Create .env file (REPLACE values with your actual AWS resource IDs)
 cat > .env << 'EOF'
@@ -77,15 +91,15 @@ SNS_TASK_ASSIGNMENT_TOPIC_ARN=YOUR_ACTUAL_SNS_TOPIC_ARN
 PORT=3000
 EOF
 
-# Start with PM2
-pm2 start ecosystem.config.js
-pm2 save
+# Start and manage PM2 as ec2-user so the same account can see it in Session Manager
+su - ec2-user -c 'cd /home/ec2-user/app/backend && pm2 start dist/main.js --name mini-jira-backend --update-env'
+su - ec2-user -c 'pm2 save'
 
-# Set PM2 to start on boot
+# Set PM2 to start on boot for ec2-user
 env PATH=$PATH:/usr/bin pm2 startup systemd -u ec2-user --hp /home/ec2-user
-pm2 save
+su - ec2-user -c 'pm2 save'
 
-chown -R ec2-user:ec2-user /home/ec2-user/app
+echo "Mini-Jira bootstrap completed at $(date)"
 ```
 
 10. Click **Launch instance**
