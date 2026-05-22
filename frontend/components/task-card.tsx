@@ -2,7 +2,7 @@
 
 import { CalendarDays, GripVertical, MessageSquare, Paperclip, UserCircle2 } from 'lucide-react';
 import { Task } from '@/lib/types';
-import { formatDate, initials, priorityStyle, statusStyle, taskIsOverdue } from '@/lib/utils';
+import { formatDate, initials, priorityStyle, statusLabel, statusStyle, taskIsOverdue } from '@/lib/utils';
 
 interface TaskCardProps {
   task: Task;
@@ -25,7 +25,7 @@ export function TaskCard({ task, onClick, draggable = false, onDragStart }: Task
       <p>{task.description}</p>
 
       <div className="task-card__meta">
-        <span className={statusStyle(task.status)}>{task.status}</span>
+        <span className={statusStyle(task.status)}>{statusLabel(task.status)}</span>
         <span className={`task-card__deadline ${overdue ? 'task-card__deadline--overdue' : ''}`}>
           <CalendarDays size={14} />
           {formatDate(task.deadline)}

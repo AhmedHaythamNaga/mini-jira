@@ -8,7 +8,7 @@ import { CreateUserInput } from '@/lib/types';
 
 export default function AdminPage() {
   const { user, users, teams, createUser, createTeam } = useApp();
-  const [userDraft, setUserDraft] = useState<CreateUserInput>({ name: '', email: '', role: 'employee', team: 'Frontend' });
+  const [userDraft, setUserDraft] = useState<CreateUserInput>({ name: '', email: '', password: '', role: 'employee', team: 'Frontend' });
   const [teamName, setTeamName] = useState('');
 
   const sortedUsers = useMemo(() => [...users].sort((left, right) => left.name.localeCompare(right.name)), [users]);
@@ -59,11 +59,14 @@ export default function AdminPage() {
               <input value={userDraft.email} onChange={(event) => setUserDraft({ ...userDraft, email: event.target.value })} />
             </label>
             <label>
+              <span>Password</span>
+              <input type="password" value={userDraft.password} onChange={(event) => setUserDraft({ ...userDraft, password: event.target.value })} />
+            </label>
+            <label>
               <span>Role</span>
               <select value={userDraft.role} onChange={(event) => setUserDraft({ ...userDraft, role: event.target.value as CreateUserInput['role'] })}>
                 <option value="employee">Employee</option>
                 <option value="manager">Manager</option>
-                <option value="admin">Admin</option>
               </select>
             </label>
             <label>
@@ -77,9 +80,9 @@ export default function AdminPage() {
             <button
               className="button button--primary"
               onClick={() => {
-                if (!userDraft.name.trim() || !userDraft.email.trim()) return;
+                if (!userDraft.name.trim() || !userDraft.email.trim() || !userDraft.password.trim()) return;
                 createUser(userDraft);
-                setUserDraft({ name: '', email: '', role: 'employee', team: 'Frontend' });
+                setUserDraft({ name: '', email: '', password: '', role: 'employee', team: 'Frontend' });
               }}
             >
               Add User

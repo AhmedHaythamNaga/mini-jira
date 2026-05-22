@@ -75,8 +75,25 @@ export interface BackendAuditLog {
 
 const DEFAULT_API_BASE_URL = 'http://localhost:3000/api';
 
+function isLocalHostname(hostname: string) {
+  return hostname === 'localhost' || hostname === '127.0.0.1';
+}
+
+/**
+ * API base URL for fetch().
+ * - Production (CloudFront): same-origin `https://<distribution>/api` (CloudFront behavior `/api/*` → ALB).
+ * - Local dev: `http://localhost:3000/api`, or optional `NEXT_PUBLIC_API_BASE_URL` override on localhost only.
+ */
 function getApiBaseUrl() {
-  return (process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL).replace(/\/$/, '');
+  if (typeof window !== 'undefined') {
+    const { hostname, origin } = window.location;
+    if (!isLocalHostname(hostname)) {
+      return `${origin}/api`;
+    }
+    const localOverride = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '');
+    return localOverride || DEFAULT_API_BASE_URL;
+  }
+  return DEFAULT_API_BASE_URL;
 }
 
 function decodeBase64UrlJson<T>(segment: string) {
@@ -213,4 +230,29 @@ export function apiCreateTeam(token: string, body: Record<string, unknown>) {
     method: 'POST',
     body: JSON.stringify(body)
   }, token);
+}
+
+export function apiGetTaskUploadUrl(token: string, taskId: string) {
+  return requestJson<{ uploadUrl: string; imageKey: string }>(`/tasks/${taskId}/upload-url`, {}, token);
+}
+
+export function apiAttachTaskImage(token: string, taskId: string, imageKey: string) {
+  return requestJson<BackendTask>(`/tasks/${taskId}/image`, {
+    method: 'PUT',
+    body: JSON.stringify({ imageKey })
+  }, token);
+}
+
+/** Upload image to S3 via presigned URL, then attach key to the task. */
+export async function apiUploadTaskImage(token: string, taskId: string, file: File) {
+  const { uploadUrl, imageKey } = await apiGetTaskUploadUrl(token, taskId);
+  const uploadResponse = await fetch(uploadUrl, {
+    method: 'PUT',
+    body: file,
+    headers: { 'Content-Type': file.type || 'image/jpeg' },
+  });
+  if (!uploadResponse.ok) {
+    throw new Error('Failed to upload image to storage');
+  }
+  return apiAttachTaskImage(token, taskId, imageKey);
 }

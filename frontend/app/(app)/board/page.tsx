@@ -17,7 +17,7 @@ const columns: { status: TaskStatus; label: string }[] = [
 ];
 
 export default function BoardPage() {
-  const { user, tasks, teamFilter, searchQuery, updateTaskStatus } = useApp();
+  const { user, tasks, teamFilter, searchQuery, updateTaskStatus, ready } = useApp();
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -41,6 +41,10 @@ export default function BoardPage() {
     setDraggedTaskId(null);
   };
 
+  if (!ready || !user) {
+    return null;
+  }
+
   return (
     <div className="page">
       <div className="page__header">
@@ -49,10 +53,12 @@ export default function BoardPage() {
           <p>{canManageAll(user) ? `Showing ${teamFilter === 'All' ? 'all teams' : teamFilter}` : `Locked to ${user?.team ?? 'your team'}`}</p>
         </div>
         <div className="page__header-actions">
-          <button className="button button--secondary" onClick={() => setCreateOpen(true)}>
-            <Plus size={16} />
-            New Task
-          </button>
+          {canManageAll(user) ? (
+            <button className="button button--secondary" onClick={() => setCreateOpen(true)}>
+              <Plus size={16} />
+              New Task
+            </button>
+          ) : null}
           <button className="button button--ghost" onClick={() => setPriorityFilter('all')}>
             <Filter size={16} />
             Reset Filters
@@ -86,9 +92,11 @@ export default function BoardPage() {
                   <h2>{column.label}</h2>
                   <p>{columnTasks.length} tasks</p>
                 </div>
-                <button className="icon-button" onClick={() => setCreateOpen(true)} aria-label={`Add task to ${column.label}`}>
-                  <Plus size={16} />
-                </button>
+                {canManageAll(user) ? (
+                  <button className="icon-button" onClick={() => setCreateOpen(true)} aria-label={`Add task to ${column.label}`}>
+                    <Plus size={16} />
+                  </button>
+                ) : null}
               </header>
 
               <div className="board-column__list">

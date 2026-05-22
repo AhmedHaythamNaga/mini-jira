@@ -19,6 +19,7 @@ import {
   apiGetUser,
   apiLogin,
   apiUpdateTask,
+  apiUploadTaskImage,
   decodeJwt,
   type AuthTokens,
   type BackendAuditLog,
@@ -42,6 +43,7 @@ import {
   TeamName,
   User,
 } from '@/lib/types';
+import { resolveTeamId } from '@/lib/utils';
 
 interface AppState {
   user: User | null;
@@ -66,7 +68,7 @@ interface AppContextValue extends AppState {
   updateTaskStatus: (taskId: string, status: Task['status']) => void;
   updateTask: (taskId: string, patch: Partial<Task>) => void;
   deleteTask: (taskId: string) => void;
-  createTask: (input: CreateTaskInput) => void;
+  createTask: (input: CreateTaskInput, imageFile?: File) => void;
   addComment: (taskId: string, content: string) => void;
   markNotificationRead: (notificationId: string) => void;
   createProject: (input: CreateProjectInput) => void;
@@ -100,6 +102,12 @@ type Session = {
   tokens: AuthTokens;
   user: User;
 };
+
+function sanitizeDeadline(deadline?: string) {
+  if (!deadline?.trim()) return '';
+  const parsed = Date.parse(deadline);
+  return Number.isNaN(parsed) ? '' : deadline;
+}
 
 function normalizePriority(priority?: string): Task['priority'] {
   switch ((priority ?? '').toLowerCase()) {
@@ -178,7 +186,7 @@ function normalizeTask(task: BackendTask, users: User[], teams: BackendTeam[]): 
     assigneeId: task.assigneeID ?? '',
     assigneeName: assignee?.name ?? 'Unassigned',
     projectId: task.projectID ?? '',
-    deadline: task.deadline ?? '',
+    deadline: sanitizeDeadline(task.deadline),
     createdAt: task.createdAt ?? new Date().toISOString(),
     updatedAt: task.updatedAt ?? task.createdAt ?? new Date().toISOString(),
     imageKey: task.imageKey,
@@ -209,13 +217,19 @@ function normalizeComment(comment: BackendComment): Comment {
 }
 
 function normalizeActivity(log: BackendAuditLog): Activity {
+  const id = log.LogID ?? (log as { logId?: string }).logId ?? crypto.randomUUID();
+  const taskId = log.taskID ?? (log as { taskId?: string }).taskId ?? '';
+  const action =
+    log.oldStatus && log.newStatus
+      ? `changed status from ${log.oldStatus} to ${log.newStatus}`
+      : ((log as { action?: string }).action ?? 'updated task');
   return {
-    id: log.LogID,
-    taskId: log.taskID,
-    userId: log.changedBy,
-    userName: log.changedBy,
-    action: `changed status from ${log.oldStatus} to ${log.newStatus}`,
-    timestamp: log.timestamp,
+    id,
+    taskId,
+    userId: log.changedBy ?? 'system',
+    userName: log.changedBy ?? 'System',
+    action,
+    timestamp: log.timestamp ?? new Date().toISOString(),
   };
 }
 
@@ -321,7 +335,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const projectCreatorIds = Array.from(new Set(projectsRaw.map((project) => project.createdBy).filter(Boolean) as string[]));
       const missingUserIds = [...taskAssigneeIds, ...projectCreatorIds].filter((id) => !usersRaw.some((user) => user.userID === id));
 
-      const extraUsers = await Promise.all(missingUserIds.map((id) => apiGetUser(token, id).catch(() => null)));
+      const resolvableUserIds = missingUserIds.filter((id) => !/^assignee\d+$/i.test(id));
+      const extraUsers = await Promise.all(
+        resolvableUserIds.map((id) => apiGetUser(token, id).catch(() => null)),
+      );
       usersRaw = [...usersRaw, ...extraUsers.filter(Boolean) as BackendUser[]];
 
       const normalizedUsers = usersRaw.map((user) => normalizeUser(user, teamsRaw));
@@ -464,9 +481,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toast.success('Task deleted successfully');
   };
 
-  const createTask = (input: CreateTaskInput) => {
+  const createTask = (input: CreateTaskInput, imageFile?: File) => {
     if (!session) return;
-    const teamId = state.teams.find((team) => team.name === input.team)?.id ?? state.user?.teamId ?? '';
+    const teamId = resolveTeamId(input.team, state.teams) || state.user?.teamId || '';
     const body = {
       title: input.title,
       description: input.description,
@@ -474,12 +491,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deadline: input.deadline,
       assigneeID: input.assigneeId,
       teamID: teamId,
-      projectID: state.projects.find((project) => project.team === input.team)?.id ?? '',
+      projectID: input.projectId,
     };
     void apiCreateTask(session.tokens.idToken, body)
-      .then(() => loadSession(session))
+      .then(async (created) => {
+        if (imageFile) {
+          await apiUploadTaskImage(session.tokens.idToken, created.taskID, imageFile);
+        }
+        await loadSession(session);
+        toast.success(imageFile ? 'Task created with image' : 'Task created');
+      })
       .catch((error) => toast.error(error instanceof Error ? error.message : 'Failed to create task'));
-    toast.success('Task created');
   };
 
   const addComment = (taskId: string, content: string) => {
@@ -510,9 +532,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     void apiCreateUser(session.tokens.idToken, {
       email: input.email,
       name: input.name,
-      password: 'password',
+      password: input.password,
       role: input.role,
-      teamID: state.teams.find((team) => team.name === input.team)?.id ?? '',
+      teamID: resolveTeamId(input.team, state.teams),
     })
       .then(() => loadSession(session))
       .catch((error) => toast.error(error instanceof Error ? error.message : 'Failed to create user'));

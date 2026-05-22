@@ -5,7 +5,7 @@ import { ArrowDownAZ, ArrowDownWideNarrow, Funnel } from 'lucide-react';
 import { TaskDetailModal } from '@/components/task-detail-modal';
 import { useApp } from '@/lib/app-state';
 import { Task } from '@/lib/types';
-import { filterTaskByScope, formatDate, matchesSearch, priorityLabels, priorityOrder, statusLabels, taskIsOverdue } from '@/lib/utils';
+import { filterTaskByScope, formatDate, matchesSearch, parseDateSafe, priorityLabel, priorityOrder, statusLabel, taskIsOverdue } from '@/lib/utils';
 
 type SortKey = 'deadline' | 'priority' | 'status';
 
@@ -24,19 +24,36 @@ const statusWeight: Record<Task['status'], number> = {
 };
 
 export default function MyTasksPage() {
-  const { user, tasks, teamFilter, searchQuery } = useApp();
+  const { user, tasks, teamFilter, searchQuery, ready } = useApp();
   const [sortKey, setSortKey] = useState<SortKey>('deadline');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const visibleTasks = useMemo(() => {
-    const filtered = tasks.filter((task) => filterTaskByScope(task, user, teamFilter) && matchesSearch(task, searchQuery));
+    if (!user) return [];
+
+    const filtered = tasks.filter(
+      (task) =>
+        task.assigneeId === user.id &&
+        filterTaskByScope(task, user, teamFilter) &&
+        matchesSearch(task, searchQuery),
+    );
 
     return [...filtered].sort((left, right) => {
-      if (sortKey === 'deadline') return new Date(left.deadline).getTime() - new Date(right.deadline).getTime();
-      if (sortKey === 'priority') return priorityWeight[left.priority] - priorityWeight[right.priority];
-      return statusWeight[left.status] - statusWeight[right.status];
+      if (sortKey === 'deadline') {
+        const leftTime = parseDateSafe(left.deadline)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        const rightTime = parseDateSafe(right.deadline)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        return leftTime - rightTime;
+      }
+      if (sortKey === 'priority') {
+        return (priorityWeight[left.priority] ?? 99) - (priorityWeight[right.priority] ?? 99);
+      }
+      return (statusWeight[left.status] ?? 99) - (statusWeight[right.status] ?? 99);
     });
   }, [searchQuery, sortKey, tasks, teamFilter, user]);
+
+  if (!ready || !user) {
+    return null;
+  }
 
   return (
     <div className="page">
@@ -81,8 +98,8 @@ export default function MyTasksPage() {
                       <strong>{task.title}</strong>
                       <p>{task.description}</p>
                     </td>
-                    <td><span className={`badge badge--${task.priority}`}>{priorityLabels[task.priority]}</span></td>
-                    <td><span className="badge badge--slate">{statusLabels[task.status]}</span></td>
+                    <td><span className={`badge badge--${task.priority}`}>{priorityLabel(task.priority)}</span></td>
+                    <td><span className="badge badge--slate">{statusLabel(task.status)}</span></td>
                     <td className={taskIsOverdue(task) ? 'table__overdue' : ''}>{formatDate(task.deadline)}</td>
                     <td>{task.team}</td>
                   </tr>

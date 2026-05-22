@@ -22,7 +22,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const notAuthorized = useMemo(() => {
     if (!user) return false;
     if (canManageAll(user)) return false;
-    return pathname === '/admin' || pathname === '/reports';
+    return pathname === '/admin';
   }, [pathname, user]);
 
   useEffect(() => {

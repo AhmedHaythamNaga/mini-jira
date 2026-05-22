@@ -1,4 +1,4 @@
-import { formatDistanceToNow, isPast, parseISO } from 'date-fns';
+import { formatDistanceToNow, isPast, isValid, parseISO } from 'date-fns';
 import { Priority, Task, TaskStatus, TeamName, User } from '@/lib/types';
 
 export const statusLabels: Record<TaskStatus, string> = {
@@ -17,7 +17,25 @@ export const priorityLabels: Record<Priority, string> = {
 
 export const priorityOrder: Priority[] = ['urgent', 'high', 'medium', 'low'];
 
-export function initials(name: string) {
+const TEAM_ID_BY_NAME: Record<Exclude<TeamName, 'All'>, string> = {
+  Frontend: 'team-frontend',
+  Backend: 'team-backend',
+};
+
+export function resolveTeamId(teamName: TeamName, teams: { id: string; name: string }[] = []) {
+  if (teamName === 'All') return '';
+  const match = teams.find((team) => team.name === teamName);
+  return match?.id ?? TEAM_ID_BY_NAME[teamName as Exclude<TeamName, 'All'>] ?? '';
+}
+
+export function parseDateSafe(value?: string) {
+  if (!value?.trim()) return null;
+  const parsed = parseISO(value);
+  return isValid(parsed) ? parsed : null;
+}
+
+export function initials(name?: string) {
+  if (!name?.trim()) return '?';
   return name
     .split(' ')
     .filter(Boolean)
@@ -26,20 +44,34 @@ export function initials(name: string) {
     .join('');
 }
 
+export function priorityLabel(priority: Priority | string) {
+  return priorityLabels[priority as Priority] ?? priority;
+}
+
+export function statusLabel(status: TaskStatus | string) {
+  return statusLabels[status as TaskStatus] ?? String(status);
+}
+
 export function formatDate(value: string) {
+  const parsed = parseDateSafe(value);
+  if (!parsed) return '—';
   return new Intl.DateTimeFormat('en', {
     month: 'short',
     day: 'numeric',
     year: 'numeric'
-  }).format(parseISO(value));
+  }).format(parsed);
 }
 
 export function timeAgo(value: string) {
-  return formatDistanceToNow(parseISO(value), { addSuffix: true });
+  const parsed = parseDateSafe(value);
+  if (!parsed) return '';
+  return formatDistanceToNow(parsed, { addSuffix: true });
 }
 
 export function taskIsOverdue(task: Task) {
-  return isPast(parseISO(task.deadline)) && task.status !== 'done';
+  const parsed = parseDateSafe(task.deadline);
+  if (!parsed) return false;
+  return isPast(parsed) && task.status !== 'done';
 }
 
 export function teamVisibleForUser(team: TeamName, user: User | null, selectedTeam: TeamName) {
@@ -71,7 +103,7 @@ export function matchesSearch(task: Task, query: string) {
     .includes(search);
 }
 
-export function statusStyle(status: TaskStatus) {
+export function statusStyle(status: TaskStatus | string) {
   switch (status) {
     case 'todo':
       return 'badge badge--slate';
@@ -81,10 +113,12 @@ export function statusStyle(status: TaskStatus) {
       return 'badge badge--violet';
     case 'done':
       return 'badge badge--green';
+    default:
+      return 'badge badge--slate';
   }
 }
 
-export function priorityStyle(priority: Priority) {
+export function priorityStyle(priority: Priority | string) {
   switch (priority) {
     case 'low':
       return 'badge badge--green';
@@ -94,6 +128,8 @@ export function priorityStyle(priority: Priority) {
       return 'badge badge--orange';
     case 'urgent':
       return 'badge badge--red';
+    default:
+      return 'badge badge--amber';
   }
 }
 

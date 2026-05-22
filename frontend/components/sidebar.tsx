@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { BarChart3, ChevronLeft, ChevronRight, FolderKanban, HelpCircle, KanbanSquare, LayoutDashboard, Users, CheckSquare } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FolderKanban, KanbanSquare, LayoutDashboard, Users, CheckSquare } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { canManageAll } from '@/lib/utils';
 import { useApp } from '@/lib/app-state';
@@ -18,9 +18,7 @@ const baseItems = [
   { href: '/my-tasks', label: 'My Tasks', icon: CheckSquare },
   { href: '/board', label: 'Team Board', icon: KanbanSquare },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
-  { href: '/reports', label: 'Reports', icon: BarChart3 },
   { href: '/admin', label: 'Admin', icon: Users },
-  { href: '/help', label: 'Help', icon: HelpCircle }
 ];
 
 export function Sidebar({ collapsed, mobileOpen, onToggleCollapse, onCloseMobile }: SidebarProps) {
@@ -31,7 +29,7 @@ export function Sidebar({ collapsed, mobileOpen, onToggleCollapse, onCloseMobile
     <aside className={`sidebar ${collapsed ? 'sidebar--collapsed' : ''} ${mobileOpen ? 'sidebar--open' : ''}`}>
       <nav className="sidebar__nav">
         {baseItems
-          .filter((item) => canManageAll(user) || (item.href !== '/reports' && item.href !== '/admin'))
+          .filter((item) => canManageAll(user) || item.href !== '/admin')
           .map((item) => {
             const active = pathname === item.href;
             const Icon = item.icon;

@@ -84,6 +84,7 @@ export interface CreateTaskInput {
   priority: Priority;
   assigneeId: string;
   team: TeamName;
+  projectId: string;
   deadline: string;
 }
 
@@ -96,6 +97,7 @@ export interface CreateProjectInput {
 export interface CreateUserInput {
   name: string;
   email: string;
+  password: string;
   role: Role;
   team: TeamName;
 }

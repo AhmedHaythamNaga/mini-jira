@@ -19,29 +19,6 @@ export function MetricCard({ title, value, icon: Icon, accent, description }: { 
   );
 }
 
-function MiniBarChart({ tasks }: { tasks: Task[] }) {
-  const days = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() - (6 - index));
-    const iso = date.toDateString();
-    const count = tasks.filter((task) => new Date(task.createdAt).toDateString() === iso).length;
-    return { label: date.toLocaleDateString('en', { weekday: 'short' }), value: count };
-  });
-
-  const max = Math.max(...days.map((day) => day.value), 1);
-
-  return (
-    <div className="chart chart--bars" aria-label="Tasks created in the last 7 days">
-      {days.map((day) => (
-        <div key={day.label} className="chart__bar-wrap">
-          <div className="chart__bar" style={{ height: `${(day.value / max) * 100}%` }} />
-          <span>{day.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function MiniPieChart({ tasks }: { tasks: Task[] }) {
   const counts = priorityOrder.map((priority) => ({ priority, value: tasks.filter((task) => task.priority === priority).length }));
   const total = Math.max(counts.reduce((sum, item) => sum + item.value, 0), 1);
@@ -111,16 +88,6 @@ export function DashboardWidgets({ tasks, managerView }: { tasks: Task[]; manage
       <MetricCard title="In Progress" value={progress} icon={ArrowUpRight} accent="blue" description="Active work" />
       <MetricCard title="Completed" value={completed} icon={CheckCircle2} accent="green" description="Finished tasks" />
       <MetricCard title="Overdue" value={overdue} icon={AlertCircle} accent="red" description="Needs attention" />
-
-      <section className="panel panel--wide">
-        <header className="panel__header">
-          <div>
-            <h2>Tasks Created</h2>
-            <p>Last 7 days</p>
-          </div>
-        </header>
-        <MiniBarChart tasks={tasks} />
-      </section>
 
       <section className="panel">
         <header className="panel__header">

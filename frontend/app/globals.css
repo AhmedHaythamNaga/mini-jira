@@ -1325,3 +1325,32 @@ p {
     border-radius: 28px;
   }
 }
+
+.upload-field {
+  display: grid;
+  gap: 10px;
+}
+
+.upload-field input[type='file'] {
+  width: 100%;
+  padding: 10px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--surface-muted);
+}
+
+.upload-field__hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.upload-field__preview {
+  max-width: 220px;
+  max-height: 160px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+}

@@ -4,7 +4,7 @@ import { FormEvent, useMemo, useState } from 'react';
 import { CalendarDays, Edit3, Paperclip, Save, ShieldAlert, Trash2, X } from 'lucide-react';
 import { Task } from '@/lib/types';
 import { useApp } from '@/lib/app-state';
-import { formatDate, initials, priorityStyle, statusLabels, statusStyle, taskIsOverdue, teamStyle } from '@/lib/utils';
+import { formatDate, initials, priorityStyle, statusLabel, statusStyle, taskIsOverdue, teamStyle } from '@/lib/utils';
 
 interface TaskDetailModalProps {
   task: Task | null;
@@ -62,7 +62,7 @@ export function TaskDetailModal({ task, open, onClose }: TaskDetailModalProps) {
               <div className="task-detail__editor">
                 <div className="task-detail__toolbar">
                   <span className={priorityStyle(task.priority)}>{task.priority}</span>
-                  <span className={statusStyle(task.status)}>{statusLabels[task.status]}</span>
+                  <span className={statusStyle(task.status)}>{statusLabel(task.status)}</span>
                   {overdue ? <span className="badge badge--red">Overdue</span> : null}
                   <div className="task-detail__toolbar-actions">
                     {canEdit ? (
@@ -201,7 +201,7 @@ export function TaskDetailModal({ task, open, onClose }: TaskDetailModalProps) {
                   </div>
                   <div>
                     <dt>Status</dt>
-                    <dd><span className={statusStyle(task.status)}>{statusLabels[task.status]}</span></dd>
+                    <dd><span className={statusStyle(task.status)}>{statusLabel(task.status)}</span></dd>
                   </div>
                 </dl>
               </div>
