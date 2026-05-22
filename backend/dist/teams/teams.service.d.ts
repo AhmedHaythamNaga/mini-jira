@@ -9,6 +9,7 @@ export declare class TeamsService {
     constructor(dynamo: DynamoDBDocumentClient, config: ConfigService);
     create(dto: CreateTeamDto): Promise<{
         teamID: string;
+        teamId: string;
         name: string;
         createdAt: string;
     }>;

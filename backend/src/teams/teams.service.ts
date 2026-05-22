@@ -10,6 +10,7 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { DYNAMO_CLIENT } from '../dynamodb/dynamodb.module';
+import { buildPrimaryKey, getItemByIdVariants } from '../dynamodb/dynamodb-helpers';
 import { CreateTeamDto } from './dto/create-team.dto';
 import { UpdateTeamDto } from './dto/update-team.dto';
 
@@ -25,8 +26,10 @@ export class TeamsService {
   }
 
   async create(dto: CreateTeamDto) {
+    const teamId = uuidv4();
     const team = {
-      teamID: uuidv4(),
+      teamID: teamId,
+      teamId,
       name: dto.name,
       createdAt: new Date().toISOString(),
     };
@@ -44,20 +47,21 @@ export class TeamsService {
   }
 
   async findOne(teamId: string) {
-    const result = await this.dynamo.send(
-      new GetCommand({ TableName: this.tableName, Key: { teamID: teamId } }),
-    );
-    if (!result.Item) throw new NotFoundException(`Team ${teamId} not found`);
-    return result.Item;
+    const item = await getItemByIdVariants(this.dynamo, this.tableName, teamId, [
+      'teamID',
+      'teamId',
+    ]);
+    if (!item) throw new NotFoundException(`Team ${teamId} not found`);
+    return item;
   }
 
   async update(teamId: string, dto: UpdateTeamDto) {
-    await this.findOne(teamId);
+    const existing = await this.findOne(teamId);
 
     const result = await this.dynamo.send(
       new UpdateCommand({
         TableName: this.tableName,
-        Key: { teamID: teamId },
+        Key: buildPrimaryKey(teamId, ['teamID', 'teamId'], existing),
         UpdateExpression: 'SET #n = :n, #u = :u',
         ExpressionAttributeNames: { '#n': 'name', '#u': 'updatedAt' },
         ExpressionAttributeValues: {
@@ -71,9 +75,12 @@ export class TeamsService {
   }
 
   async remove(teamId: string) {
-    await this.findOne(teamId);
+    const existing = await this.findOne(teamId);
     await this.dynamo.send(
-      new DeleteCommand({ TableName: this.tableName, Key: { teamID: teamId } }),
+      new DeleteCommand({
+        TableName: this.tableName,
+        Key: buildPrimaryKey(teamId, ['teamID', 'teamId'], existing),
+      }),
     );
     return { deleted: true };
   }

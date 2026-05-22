@@ -19,6 +19,7 @@ const lib_dynamodb_1 = require("@aws-sdk/lib-dynamodb");
 const lib_dynamodb_2 = require("@aws-sdk/lib-dynamodb");
 const uuid_1 = require("uuid");
 const dynamodb_module_1 = require("../dynamodb/dynamodb.module");
+const dynamodb_helpers_1 = require("../dynamodb/dynamodb-helpers");
 let TeamsService = class TeamsService {
     constructor(dynamo, config) {
         this.dynamo = dynamo;
@@ -26,8 +27,10 @@ let TeamsService = class TeamsService {
         this.tableName = this.config.get('DYNAMODB_TEAMS_TABLE', 'mini-jira-teams');
     }
     async create(dto) {
+        const teamId = (0, uuid_1.v4)();
         const team = {
-            teamID: (0, uuid_1.v4)(),
+            teamID: teamId,
+            teamId,
             name: dto.name,
             createdAt: new Date().toISOString(),
         };
@@ -39,16 +42,19 @@ let TeamsService = class TeamsService {
         return result.Items || [];
     }
     async findOne(teamId) {
-        const result = await this.dynamo.send(new lib_dynamodb_2.GetCommand({ TableName: this.tableName, Key: { teamID: teamId } }));
-        if (!result.Item)
+        const item = await (0, dynamodb_helpers_1.getItemByIdVariants)(this.dynamo, this.tableName, teamId, [
+            'teamID',
+            'teamId',
+        ]);
+        if (!item)
             throw new common_1.NotFoundException(`Team ${teamId} not found`);
-        return result.Item;
+        return item;
     }
     async update(teamId, dto) {
-        await this.findOne(teamId);
+        const existing = await this.findOne(teamId);
         const result = await this.dynamo.send(new lib_dynamodb_2.UpdateCommand({
             TableName: this.tableName,
-            Key: { teamID: teamId },
+            Key: (0, dynamodb_helpers_1.buildPrimaryKey)(teamId, ['teamID', 'teamId'], existing),
             UpdateExpression: 'SET #n = :n, #u = :u',
             ExpressionAttributeNames: { '#n': 'name', '#u': 'updatedAt' },
             ExpressionAttributeValues: {
@@ -60,8 +66,11 @@ let TeamsService = class TeamsService {
         return result.Attributes;
     }
     async remove(teamId) {
-        await this.findOne(teamId);
-        await this.dynamo.send(new lib_dynamodb_2.DeleteCommand({ TableName: this.tableName, Key: { teamID: teamId } }));
+        const existing = await this.findOne(teamId);
+        await this.dynamo.send(new lib_dynamodb_2.DeleteCommand({
+            TableName: this.tableName,
+            Key: (0, dynamodb_helpers_1.buildPrimaryKey)(teamId, ['teamID', 'teamId'], existing),
+        }));
         return { deleted: true };
     }
 };

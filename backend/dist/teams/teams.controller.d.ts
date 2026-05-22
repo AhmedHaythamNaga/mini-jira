@@ -6,6 +6,7 @@ export declare class TeamsController {
     constructor(teamsService: TeamsService);
     create(dto: CreateTeamDto): Promise<{
         teamID: string;
+        teamId: string;
         name: string;
         createdAt: string;
     }>;
