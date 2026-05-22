@@ -115,6 +115,10 @@ function normalizePriority(priority?: string): Task['priority'] {
   }
 }
 
+function getDisplayName(name?: string, email?: string) {
+  return name ?? email ?? 'User';
+}
+
 function normalizeStatus(status?: string): Task['status'] {
   const value = (status ?? '').toLowerCase();
   if (value.includes('progress')) return 'in-progress';
@@ -143,15 +147,16 @@ function toTeamName(teamId: string | undefined, teams: BackendTeam[] = []) {
 }
 
 function normalizeUser(user: BackendUser, teams: BackendTeam[] = []): User {
+  const displayName = user.name ?? user.email ?? 'User';
   return {
     id: user.userID,
-    name: user.name,
+    name: displayName,
     email: user.email,
     password: '',
     role: (user.role as User['role']) ?? 'employee',
     teamId: user.teamID,
     team: toTeamName(user.teamID, teams),
-    avatar: user.name
+    avatar: displayName
       .split(' ')
       .filter(Boolean)
       .slice(0, 2)
@@ -397,7 +402,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const nextSession = createSessionFromTokens(tokens);
       setSession(nextSession);
       await loadSession(nextSession);
-      toast.success(`Welcome back, ${nextSession.user.name.split(' ')[0]}`);
+      toast.success(`Welcome back, ${getDisplayName(nextSession.user.name, nextSession.user.email).split(' ')[0]}`);
       return true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Invalid email or password');

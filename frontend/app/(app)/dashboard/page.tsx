@@ -10,6 +10,7 @@ import { canManageAll, filterTaskByScope, matchesSearch } from '@/lib/utils';
 export default function DashboardPage() {
   const { user, tasks, teamFilter, searchQuery } = useApp();
   const [createOpen, setCreateOpen] = useState(false);
+  const displayName = user?.name ?? user?.email ?? 'User';
 
   const scopedTasks = useMemo(() => tasks.filter((task) => filterTaskByScope(task, user, teamFilter) && matchesSearch(task, searchQuery)), [searchQuery, tasks, teamFilter, user]);
 
@@ -18,7 +19,7 @@ export default function DashboardPage() {
       <div className="page__header">
         <div>
           <h1>Dashboard</h1>
-          <p>Welcome back{user ? `, ${user.name.split(' ')[0]}` : ''}. Here is the current team pulse.</p>
+          <p>Welcome back{user ? `, ${displayName.split(' ')[0]}` : ''}. Here is the current team pulse.</p>
         </div>
         <button className="button button--primary" onClick={() => setCreateOpen(true)}>
           <Plus size={16} />

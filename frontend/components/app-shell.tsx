@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Toaster } from 'sonner';
 import { Bell, X } from 'lucide-react';
@@ -18,11 +18,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const isProtectedRoute = pathname !== '/login';
+  const shouldRedirectToLogin = ready && isProtectedRoute && !user && pathname !== '/login';
   const notAuthorized = useMemo(() => {
     if (!user) return false;
     if (canManageAll(user)) return false;
     return pathname === '/admin' || pathname === '/reports';
   }, [pathname, user]);
+
+  useEffect(() => {
+    if (shouldRedirectToLogin) {
+      router.replace('/login');
+    }
+  }, [router, shouldRedirectToLogin]);
 
   if (!ready) {
     return (
@@ -36,8 +43,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     );
   }
 
-  if (isProtectedRoute && !user && pathname !== '/login') {
-    router.replace('/login');
+  if (shouldRedirectToLogin) {
     return null;
   }
 
