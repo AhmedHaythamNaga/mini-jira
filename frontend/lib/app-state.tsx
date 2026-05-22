@@ -138,19 +138,19 @@ function backendStatus(status: Task['status']) {
 
 function toTeamName(teamId: string | undefined, teams: BackendTeam[] = []) {
   if (!teamId) return 'All';
-  const team = teams.find((item) => item.teamId === teamId || item.name === teamId);
+  const team = teams.find((item) => item.teamID === teamId || item.name === teamId);
   return (team?.name as TeamName) ?? 'All';
 }
 
 function normalizeUser(user: BackendUser, teams: BackendTeam[] = []): User {
   return {
-    id: user.userId,
+    id: user.userID,
     name: user.name,
     email: user.email,
     password: '',
     role: (user.role as User['role']) ?? 'employee',
-    teamId: user.teamId,
-    team: toTeamName(user.teamId, teams),
+    teamId: user.teamID,
+    team: toTeamName(user.teamID, teams),
     avatar: user.name
       .split(' ')
       .filter(Boolean)
@@ -161,18 +161,18 @@ function normalizeUser(user: BackendUser, teams: BackendTeam[] = []): User {
 }
 
 function normalizeTask(task: BackendTask, users: User[], teams: BackendTeam[]): Task {
-  const assignee = users.find((user) => user.id === task.assigneeId);
+  const assignee = users.find((user) => user.id === task.assigneeID);
   return {
-    id: task.taskId,
+    id: task.taskID,
     title: task.title,
     description: task.description ?? '',
     priority: normalizePriority(task.priority),
     status: normalizeStatus(task.status),
-    team: toTeamName(task.teamId, teams),
-    teamId: task.teamId,
-    assigneeId: task.assigneeId ?? '',
+    team: toTeamName(task.teamID, teams),
+    teamId: task.teamID,
+    assigneeId: task.assigneeID ?? '',
     assigneeName: assignee?.name ?? 'Unassigned',
-    projectId: task.projectId ?? '',
+    projectId: task.projectID ?? '',
     deadline: task.deadline ?? '',
     createdAt: task.createdAt ?? new Date().toISOString(),
     updatedAt: task.updatedAt ?? task.createdAt ?? new Date().toISOString(),
@@ -183,7 +183,7 @@ function normalizeTask(task: BackendTask, users: User[], teams: BackendTeam[]): 
 function normalizeProject(project: BackendProject, users: User[]): Project {
   const creator = users.find((user) => user.id === project.createdBy);
   return {
-    id: project.projectId,
+    id: project.projectID,
     name: project.name,
     description: project.description ?? '',
     team: creator?.team ?? 'All',
@@ -194,9 +194,9 @@ function normalizeProject(project: BackendProject, users: User[]): Project {
 
 function normalizeComment(comment: BackendComment): Comment {
   return {
-    id: comment.commentId,
-    taskId: comment.taskId,
-    userId: comment.authorId,
+    id: comment.commentID,
+    taskId: comment.taskID,
+    userId: comment.authorID,
     userName: comment.authorName,
     content: comment.content,
     createdAt: comment.createdAt,
@@ -205,8 +205,8 @@ function normalizeComment(comment: BackendComment): Comment {
 
 function normalizeActivity(log: BackendAuditLog): Activity {
   return {
-    id: log.logId,
-    taskId: log.taskId,
+    id: log.LogID,
+    taskId: log.taskID,
     userId: log.changedBy,
     userName: log.changedBy,
     action: `changed status from ${log.oldStatus} to ${log.newStatus}`,
@@ -302,7 +302,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         teamsRaw = teamsResponse;
         usersRaw = usersResponse;
       } else {
-        usersRaw = [{ userId: currentUser.id, email: currentUser.email, name: currentUser.name, role: currentUser.role, teamId: currentUser.teamId }];
+        usersRaw = [{ userID: currentUser.id, email: currentUser.email, name: currentUser.name, role: currentUser.role, teamID: currentUser.teamId }];
         if (currentUser.teamId) {
           try {
             teamsRaw = [await apiGetTeam(token, currentUser.teamId)];
@@ -312,19 +312,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      const taskAssigneeIds = Array.from(new Set(tasksRaw.map((task) => task.assigneeId).filter(Boolean) as string[]));
+      const taskAssigneeIds = Array.from(new Set(tasksRaw.map((task) => task.assigneeID).filter(Boolean) as string[]));
       const projectCreatorIds = Array.from(new Set(projectsRaw.map((project) => project.createdBy).filter(Boolean) as string[]));
-      const missingUserIds = [...taskAssigneeIds, ...projectCreatorIds].filter((id) => !usersRaw.some((user) => user.userId === id));
+      const missingUserIds = [...taskAssigneeIds, ...projectCreatorIds].filter((id) => !usersRaw.some((user) => user.userID === id));
 
       const extraUsers = await Promise.all(missingUserIds.map((id) => apiGetUser(token, id).catch(() => null)));
       usersRaw = [...usersRaw, ...extraUsers.filter(Boolean) as BackendUser[]];
 
       const normalizedUsers = usersRaw.map((user) => normalizeUser(user, teamsRaw));
       const normalizedTeams = teamsRaw.map((team) => ({
-        id: team.teamId,
+        id: team.teamID,
         name: team.name as Exclude<TeamName, 'All'>,
-        memberCount: usersRaw.filter((user) => user.teamId === team.teamId || user.teamId === team.name).length,
-        projectCount: projectsRaw.filter((project) => normalizedUsers.find((user) => user.id === project.createdBy)?.teamId === team.teamId).length,
+        memberCount: usersRaw.filter((user) => user.teamID === team.teamID || user.teamID === team.name).length,
+        projectCount: projectsRaw.filter((project) => normalizedUsers.find((user) => user.id === project.createdBy)?.teamId === team.teamID).length,
       }));
 
       const normalizedTasks = tasksRaw.map((task) => normalizeTask(task, normalizedUsers, teamsRaw));
@@ -441,9 +441,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (patch.status !== undefined) body.status = backendStatus(patch.status);
     if (patch.priority !== undefined) body.priority = patch.priority === 'urgent' ? 'critical' : patch.priority;
     if (patch.deadline !== undefined) body.deadline = patch.deadline;
-    if (patch.assigneeId !== undefined) body.assigneeId = patch.assigneeId;
-    if (patch.teamId !== undefined) body.teamId = patch.teamId;
-    if (patch.projectId !== undefined) body.projectId = patch.projectId;
+    if (patch.assigneeId !== undefined) body.assigneeID = patch.assigneeId;
+    if (patch.teamId !== undefined) body.teamID = patch.teamId;
+    if (patch.projectId !== undefined) body.projectID = patch.projectId;
 
     void apiUpdateTask(session.tokens.idToken, taskId, body)
       .then(() => loadSession(session))
@@ -467,9 +467,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       description: input.description,
       priority: input.priority === 'urgent' ? 'critical' : input.priority,
       deadline: input.deadline,
-      assigneeId: input.assigneeId,
-      teamId,
-      projectId: state.projects.find((project) => project.team === input.team)?.id ?? '',
+      assigneeID: input.assigneeId,
+      teamID: teamId,
+      projectID: state.projects.find((project) => project.team === input.team)?.id ?? '',
     };
     void apiCreateTask(session.tokens.idToken, body)
       .then(() => loadSession(session))
@@ -507,7 +507,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       name: input.name,
       password: 'password',
       role: input.role,
-      teamId: state.teams.find((team) => team.name === input.team)?.id ?? '',
+      teamID: state.teams.find((team) => team.name === input.team)?.id ?? '',
     })
       .then(() => loadSession(session))
       .catch((error) => toast.error(error instanceof Error ? error.message : 'Failed to create user'));

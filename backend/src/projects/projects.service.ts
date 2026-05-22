@@ -27,7 +27,7 @@ export class ProjectsService {
 
   async create(dto: CreateProjectDto, user: AuthUser) {
     const project = {
-      projectId: uuidv4(),
+      projectID: uuidv4(),
       name: dto.name,
       description: dto.description || '',
       createdBy: user.userId,
@@ -48,7 +48,7 @@ export class ProjectsService {
 
   async findOne(projectId: string) {
     const result = await this.dynamo.send(
-      new GetCommand({ TableName: this.tableName, Key: { projectId } }),
+      new GetCommand({ TableName: this.tableName, Key: { projectID: projectId } }),
     );
     if (!result.Item) throw new NotFoundException(`Project ${projectId} not found`);
     return result.Item;
@@ -81,7 +81,7 @@ export class ProjectsService {
     const result = await this.dynamo.send(
       new UpdateCommand({
         TableName: this.tableName,
-        Key: { projectId },
+        Key: { projectID: projectId },
         UpdateExpression: `SET ${expressionParts.join(', ')}`,
         ExpressionAttributeNames: names,
         ExpressionAttributeValues: values,
@@ -94,7 +94,7 @@ export class ProjectsService {
   async remove(projectId: string) {
     await this.findOne(projectId);
     await this.dynamo.send(
-      new DeleteCommand({ TableName: this.tableName, Key: { projectId } }),
+      new DeleteCommand({ TableName: this.tableName, Key: { projectID: projectId } }),
     );
     return { deleted: true };
   }

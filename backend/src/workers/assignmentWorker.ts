@@ -9,12 +9,12 @@ const cloudwatch = new CloudWatchClient({});
 const ses = new SESClient({});
 
 export interface AssignmentMessage {
-  taskId: string;
+  taskID: string;
   taskTitle: string;
-  assigneeId?: string;
+  assigneeID?: string;
   assigneeName?: string;
   assigneeEmail: string;
-  teamId?: string;
+  teamID?: string;
   assignedBy?: string;
 }
 
@@ -59,11 +59,11 @@ export const handler = async (event: SQSEvent): Promise<{ statusCode: number }> 
       new PutItemCommand({
         TableName: process.env.AUDIT_LOG_TABLE,
         Item: {
-          logId: { S: crypto.randomUUID() },
-          taskId: { S: message.taskId },
+          LogID: { S: crypto.randomUUID() },
+          taskID: { S: message.taskID },
           action: { S: 'TASK_ASSIGNED' },
-          assigneeId: { S: message.assigneeId || '' },
-          teamId: { S: message.teamId || '' },
+          assigneeID: { S: message.assigneeID || '' },
+          teamID: { S: message.teamID || '' },
           timestamp: { S: new Date().toISOString() },
         },
       }),
@@ -79,7 +79,7 @@ export const handler = async (event: SQSEvent): Promise<{ statusCode: number }> 
             Dimensions: [
               {
                 Name: 'TeamId',
-                Value: message.teamId || 'unknown',
+                Value: message.teamID || 'unknown',
               },
             ],
             Unit: 'Count',

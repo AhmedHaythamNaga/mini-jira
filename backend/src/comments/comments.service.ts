@@ -23,19 +23,19 @@ export class CommentsService {
   async create(taskId: string, dto: CreateCommentDto, user: AuthUser) {
     // Ensure task exists and enforce team isolation
     const taskRes = await this.dynamo.send(
-      new GetCommand({ TableName: this.tasksTable, Key: { taskId } }),
+      new GetCommand({ TableName: this.tasksTable, Key: { taskID: taskId } }),
     );
     if (!taskRes.Item) throw new NotFoundException(`Task ${taskId} not found`);
     if (user && user.role === 'employee' && user.teamId) {
-      const taskTeam = taskRes.Item.teamId as string | undefined;
+      const taskTeam = taskRes.Item.teamID as string | undefined;
       if (taskTeam && taskTeam !== user.teamId) {
         throw new ForbiddenException('You are not authorized to comment on this task');
       }
     }
     const comment = {
-      commentId: uuidv4(),
-      taskId,
-      authorId: user.userId,
+      commentID: uuidv4(),
+      taskID: taskId,
+      authorID: user.userId,
       authorName: user.name,
       content: dto.content,
       createdAt: new Date().toISOString(),
@@ -50,11 +50,11 @@ export class CommentsService {
   async findByTask(taskId: string, user?: AuthUser) {
     // Ensure task exists and enforce team isolation for employees
     const taskRes = await this.dynamo.send(
-      new GetCommand({ TableName: this.tasksTable, Key: { taskId } }),
+      new GetCommand({ TableName: this.tasksTable, Key: { taskID: taskId } }),
     );
     if (!taskRes.Item) throw new NotFoundException(`Task ${taskId} not found`);
     if (user && user.role === 'employee' && user.teamId) {
-      const taskTeam = taskRes.Item.teamId as string | undefined;
+      const taskTeam = taskRes.Item.teamID as string | undefined;
       if (taskTeam && taskTeam !== user.teamId) {
         throw new ForbiddenException('You are not authorized to view comments for this task');
       }
@@ -63,9 +63,9 @@ export class CommentsService {
     const result = await this.dynamo.send(
       new QueryCommand({
         TableName: this.tableName,
-        IndexName: 'taskId-index',
-        KeyConditionExpression: 'taskId = :taskId',
-        ExpressionAttributeValues: { ':taskId': taskId },
+        IndexName: 'taskID-index',
+        KeyConditionExpression: 'taskID = :taskID',
+        ExpressionAttributeValues: { ':taskID': taskId },
       }),
     );
     // Sort by createdAt ascending

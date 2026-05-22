@@ -11,5 +11,5 @@ export class UpdateUserDto {
 
   @IsString()
   @IsOptional()
-  teamId?: string;
+  teamID?: string;
 }

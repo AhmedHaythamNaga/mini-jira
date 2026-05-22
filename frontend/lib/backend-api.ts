@@ -13,15 +13,15 @@ export interface JwtClaims {
 }
 
 export interface BackendTask {
-  taskId: string;
+  taskID: string;
   title: string;
   description?: string;
   status?: string;
   priority?: string;
   deadline?: string;
-  assigneeId?: string;
-  teamId?: string;
-  projectId?: string;
+  assigneeID?: string;
+  teamID?: string;
+  projectID?: string;
   imageKey?: string;
   resizedImageKey?: string;
   createdBy?: string;
@@ -30,7 +30,7 @@ export interface BackendTask {
 }
 
 export interface BackendProject {
-  projectId: string;
+  projectID: string;
   name: string;
   description?: string;
   createdBy?: string;
@@ -39,34 +39,34 @@ export interface BackendProject {
 }
 
 export interface BackendUser {
-  userId: string;
+  userID: string;
   email: string;
   name: string;
   role: string;
-  teamId?: string;
+  teamID?: string;
   createdAt?: string;
   updatedAt?: string;
 }
 
 export interface BackendTeam {
-  teamId: string;
+  teamID: string;
   name: string;
   createdAt?: string;
   updatedAt?: string;
 }
 
 export interface BackendComment {
-  commentId: string;
-  taskId: string;
-  authorId: string;
+  commentID: string;
+  taskID: string;
+  authorID: string;
   authorName: string;
   content: string;
   createdAt: string;
 }
 
 export interface BackendAuditLog {
-  logId: string;
-  taskId: string;
+  LogID: string;
+  taskID: string;
   changedBy: string;
   oldStatus: string;
   newStatus: string;

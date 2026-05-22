@@ -3,12 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 
 export interface TaskAssignmentPayload {
-  taskId: string;
+  taskID: string;
   taskTitle: string;
-  assigneeId?: string;
+  assigneeID?: string;
   assigneeName?: string;
   assigneeEmail?: string;
-  teamId?: string;
+  teamID?: string;
   assignedBy?: string;
 }
 

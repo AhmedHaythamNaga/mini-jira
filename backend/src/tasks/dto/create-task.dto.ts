@@ -18,13 +18,13 @@ export class CreateTaskDto {
 
   @IsString()
   @IsOptional()
-  assigneeId?: string;
+  assigneeID?: string;
 
   @IsString()
   @IsOptional()
-  teamId?: string;
+  teamID?: string;
 
   @IsString()
   @IsOptional()
-  projectId?: string;
+  projectID?: string;
 }

@@ -15,5 +15,5 @@ export class CreateUserDto {
 
   @IsString()
   @IsOptional()
-  teamId?: string;
+  teamID?: string;
 }

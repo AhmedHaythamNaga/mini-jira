@@ -157,7 +157,6 @@ p {
 .user-menu__summary,
 .sidebar__item,
 .sidebar__collapse,
-.quick-login__button,
 .tabs__item,
 .notification-item,
 .board-column,
@@ -234,7 +233,6 @@ p {
 .icon-button,
 .sidebar__item,
 .sidebar__collapse,
-.quick-login__button,
 .tabs__item,
 .notification-item {
   transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
@@ -244,7 +242,6 @@ p {
 .icon-button:hover,
 .sidebar__item:hover,
 .sidebar__collapse:hover,
-.quick-login__button:hover,
 .tabs__item:hover,
 .notification-item:hover {
   transform: translateY(-1px);
@@ -1032,35 +1029,6 @@ p {
   color: var(--muted);
 }
 
-.quick-login {
-  display: grid;
-  gap: 14px;
-}
-
-.quick-login__grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.quick-login__button {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  padding: 14px;
-  border-radius: 18px;
-}
-
-.quick-login__button span {
-  display: flex;
-  flex-direction: column;
-  text-align: left;
-}
-
-.quick-login__button small {
-  color: var(--muted);
-}
-
 .task-detail {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
@@ -1278,7 +1246,6 @@ p {
 
   .board,
   .project-grid,
-  .quick-login__grid,
   .dashboard-grid,
   .modal__form,
   .admin-form {

@@ -1,12 +1,12 @@
 import { SNSClient, PublishCommand, PublishCommandOutput } from "@aws-sdk/client-sns";
 
 export interface TaskAssignment {
-  taskId: string;
+  taskID: string;
   taskTitle: string;
-  assigneeId?: string;
+  assigneeID?: string;
   assigneeName?: string;
   assigneeEmail?: string;
-  teamId?: string;
+  teamID?: string;
   assignedBy?: string;
 }
 
@@ -28,14 +28,14 @@ export async function publishTaskAssignment(
     Message: JSON.stringify({
       type: "TASK_ASSIGNED",
 
-      taskId: taskData.taskId,
+      taskID: taskData.taskID,
       taskTitle: taskData.taskTitle,
 
-      assigneeId: taskData.assigneeId,
+      assigneeID: taskData.assigneeID,
       assigneeName: taskData.assigneeName,
       assigneeEmail: taskData.assigneeEmail,
 
-      teamId: taskData.teamId,
+      teamID: taskData.teamID,
 
       assignedBy: taskData.assignedBy,
 

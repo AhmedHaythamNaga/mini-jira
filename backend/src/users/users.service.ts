@@ -46,13 +46,13 @@ export class UsersService {
           { Name: 'email_verified', Value: 'true' },
           { Name: 'name', Value: dto.name },
           { Name: 'custom:role', Value: dto.role },
-          { Name: 'custom:teamId', Value: dto.teamId || '' },
+          { Name: 'custom:teamId', Value: dto.teamID || '' },
         ],
         MessageAction: 'SUPPRESS',
       }),
     );
 
-    const userId = cognitoResult.User?.Username || dto.email;
+    const userID = cognitoResult.User?.Username || dto.email;
 
     // Set permanent password
     await this.cognitoClient.send(
@@ -66,11 +66,11 @@ export class UsersService {
 
     // 2. Save user in DynamoDB
     const user = {
-      userId,
+      userID,
       email: dto.email,
       name: dto.name,
       role: dto.role,
-      teamId: dto.teamId || '',
+      teamID: dto.teamID || '',
       createdAt: new Date().toISOString(),
     };
 
@@ -90,7 +90,7 @@ export class UsersService {
 
   async findOne(userId: string) {
     const result = await this.dynamo.send(
-      new GetCommand({ TableName: this.tableName, Key: { userId } }),
+      new GetCommand({ TableName: this.tableName, Key: { userID: userId } }),
     );
     if (!result.Item) throw new NotFoundException(`User ${userId} not found`);
     return result.Item;
@@ -113,10 +113,10 @@ export class UsersService {
       names['#r'] = 'role';
       values[':r'] = dto.role;
     }
-    if (dto.teamId !== undefined) {
+    if (dto.teamID !== undefined) {
       expressionParts.push('#t = :t');
-      names['#t'] = 'teamId';
-      values[':t'] = dto.teamId;
+      names['#t'] = 'teamID';
+      values[':t'] = dto.teamID;
     }
 
     if (expressionParts.length === 0) return this.findOne(userId);
@@ -128,7 +128,7 @@ export class UsersService {
     const result = await this.dynamo.send(
       new UpdateCommand({
         TableName: this.tableName,
-        Key: { userId },
+        Key: { userID: userId },
         UpdateExpression: `SET ${expressionParts.join(', ')}`,
         ExpressionAttributeNames: names,
         ExpressionAttributeValues: values,
@@ -136,10 +136,10 @@ export class UsersService {
       }),
     );
 
-    // Also update Cognito custom attributes if role or teamId changed
+    // Also update Cognito custom attributes if role or teamID changed
     const cognitoAttrs: { Name: string; Value: string }[] = [];
     if (dto.role !== undefined) cognitoAttrs.push({ Name: 'custom:role', Value: dto.role });
-    if (dto.teamId !== undefined) cognitoAttrs.push({ Name: 'custom:teamId', Value: dto.teamId });
+    if (dto.teamID !== undefined) cognitoAttrs.push({ Name: 'custom:teamId', Value: dto.teamID });
     if (dto.name !== undefined) cognitoAttrs.push({ Name: 'name', Value: dto.name });
 
     if (cognitoAttrs.length > 0) {
@@ -161,7 +161,7 @@ export class UsersService {
   async remove(userId: string) {
     await this.findOne(userId);
     await this.dynamo.send(
-      new DeleteCommand({ TableName: this.tableName, Key: { userId } }),
+      new DeleteCommand({ TableName: this.tableName, Key: { userID: userId } }),
     );
     return { deleted: true };
   }

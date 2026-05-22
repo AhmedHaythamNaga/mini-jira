@@ -72,7 +72,7 @@ export class TasksController {
     @Body() dto: AssignTaskDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.tasksService.assign(id, dto.assigneeId, user);
+    return this.tasksService.assign(id, dto.assigneeID, user);
   }
 
   @Delete(':id')

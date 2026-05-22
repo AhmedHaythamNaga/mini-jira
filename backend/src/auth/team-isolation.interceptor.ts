@@ -8,7 +8,7 @@ import { Observable } from 'rxjs';
 
 /**
  * Team Isolation Interceptor
- * For employees, injects teamId from the verified Cognito token into
+ * For employees, injects teamID from the verified Cognito token into
  * request query/body so that downstream services always filter by team.
  * Managers and admins bypass team isolation.
  */
@@ -19,11 +19,11 @@ export class TeamIsolationInterceptor implements NestInterceptor {
     const user = request.user;
 
     if (user && user.role === 'employee' && user.teamId) {
-      // Inject teamId into query params for GET requests
-      request.query = { ...request.query, teamId: user.teamId };
-      // Inject teamId into body for POST/PUT requests
+      // Inject teamID into query params for GET requests
+      request.query = { ...request.query, teamID: user.teamId };
+      // Inject teamID into body for POST/PUT requests
       if (request.body && typeof request.body === 'object') {
-        request.body.teamId = user.teamId;
+        request.body.teamID = user.teamId;
       }
     }
 

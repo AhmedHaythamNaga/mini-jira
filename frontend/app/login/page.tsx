@@ -1,18 +1,12 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from 'react';
-import { ArrowRight, CheckSquare, UserRound } from 'lucide-react';
+import { ArrowRight, CheckSquare } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/lib/app-state';
 
-const quickLogins = [
-  { id: 'u-ali', label: 'Ali', role: 'Manager' },
-  { id: 'u-sara', label: 'Sara', role: 'Employee' },
-  { id: 'u-omar', label: 'Omar', role: 'Employee' }
-];
-
 export default function LoginPage() {
-  const { login, loginAsDemo, user, ready } = useApp();
+  const { login, user, ready } = useApp();
   const router = useRouter();
   const [email, setEmail] = useState('ali@company.com');
   const [password, setPassword] = useState('password');
@@ -55,30 +49,6 @@ export default function LoginPage() {
             <ArrowRight size={16} />
           </button>
         </form>
-
-        <div className="quick-login">
-          <h2>Quick login</h2>
-          <div className="quick-login__grid">
-            {quickLogins.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className="quick-login__button"
-                onClick={() => {
-                  void loginAsDemo(item.id).then((success) => {
-                    if (success) router.push('/dashboard');
-                  });
-                }}
-              >
-                <UserRound size={16} />
-                <span>
-                  <strong>{item.label}</strong>
-                  <small>{item.role}</small>
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
       </section>
     </main>
   );

@@ -50,15 +50,15 @@ export class TasksService {
   async create(dto: CreateTaskDto, user: AuthUser) {
     const now = new Date().toISOString();
     const task = {
-      taskId: uuidv4(),
+      taskID: uuidv4(),
       title: dto.title,
       description: dto.description || '',
       status: 'To Do',
       priority: dto.priority || 'medium',
       deadline: dto.deadline || '',
-      assigneeId: dto.assigneeId || '',
-      teamId: dto.teamId || '',
-      projectId: dto.projectId || '',
+      assigneeID: dto.assigneeID || '',
+      teamID: dto.teamID || '',
+      projectID: dto.projectID || '',
       imageKey: '',
       resizedImageKey: '',
       createdBy: user.userId,
@@ -71,10 +71,10 @@ export class TasksService {
     );
 
     // Publish TaskCreated metric
-    await this.publishMetric('TaskCreated', 1, task.teamId);
+    await this.publishMetric('TaskCreated', 1, task.teamID);
 
     // If assignee is set, trigger SNS notification
-    if (task.assigneeId) {
+    if (task.assigneeID) {
       await this.publishAssignment(task, user);
     }
 
@@ -87,9 +87,9 @@ export class TasksService {
       const result = await this.dynamo.send(
         new QueryCommand({
           TableName: this.tableName,
-          IndexName: 'teamId-index',
-          KeyConditionExpression: 'teamId = :teamId',
-          ExpressionAttributeValues: { ':teamId': user.teamId },
+          IndexName: 'teamID-index',
+          KeyConditionExpression: 'teamID = :teamID',
+          ExpressionAttributeValues: { ':teamID': user.teamId },
         }),
       );
       return result.Items || [];
@@ -104,13 +104,13 @@ export class TasksService {
 
   async findOne(taskId: string, user?: AuthUser) {
     const result = await this.dynamo.send(
-      new GetCommand({ TableName: this.tableName, Key: { taskId } }),
+      new GetCommand({ TableName: this.tableName, Key: { taskID: taskId } }),
     );
     if (!result.Item) throw new NotFoundException(`Task ${taskId} not found`);
 
     // Enforce team isolation for employees
     if (user && user.role === 'employee' && user.teamId) {
-      const itemTeam = result.Item.teamId as string | undefined;
+      const itemTeam = result.Item.teamID as string | undefined;
       if (itemTeam && itemTeam !== user.teamId) {
         throw new ForbiddenException('You are not authorized to access this task');
       }
@@ -124,7 +124,7 @@ export class TasksService {
     const result = await this.dynamo.send(
       new ScanCommand({
         TableName: this.tableName,
-        FilterExpression: 'projectId = :pid',
+        FilterExpression: 'projectID = :pid',
         ExpressionAttributeValues: { ':pid': projectId },
       }),
     );
@@ -132,7 +132,7 @@ export class TasksService {
 
     // Team isolation
     if (user.role === 'employee' && user.teamId) {
-      items = items.filter((i) => i.teamId === user.teamId);
+      items = items.filter((i) => i.teamID === user.teamId);
     }
     return items;
   }
@@ -141,8 +141,8 @@ export class TasksService {
     const result = await this.dynamo.send(
       new QueryCommand({
         TableName: this.tableName,
-        IndexName: 'assigneeId-index',
-        KeyConditionExpression: 'assigneeId = :aid',
+        IndexName: 'assigneeID-index',
+        KeyConditionExpression: 'assigneeID = :aid',
         ExpressionAttributeValues: { ':aid': assigneeId },
       }),
     );
@@ -153,7 +153,7 @@ export class TasksService {
     const existing = await this.findOne(taskId);
 
     // Authorization: managers can update any task; employees can only update tasks assigned to them
-    if (user.role === 'employee' && existing.assigneeId !== user.userId) {
+    if (user.role === 'employee' && existing.assigneeID !== user.userId) {
       throw new ForbiddenException('You can only update tasks assigned to you');
     }
 
@@ -167,9 +167,9 @@ export class TasksService {
       ['status', '#st', dto.status],
       ['priority', '#pr', dto.priority],
       ['deadline', '#dl', dto.deadline],
-      ['assigneeId', '#ai', dto.assigneeId],
-      ['teamId', '#tm', dto.teamId],
-      ['projectId', '#pj', dto.projectId],
+      ['assigneeID', '#ai', dto.assigneeID],
+      ['teamID', '#tm', dto.teamID],
+      ['projectID', '#pj', dto.projectID],
     ];
 
     for (const [field, alias, value] of fields) {
@@ -190,7 +190,7 @@ export class TasksService {
     const result = await this.dynamo.send(
       new UpdateCommand({
         TableName: this.tableName,
-        Key: { taskId },
+        Key: { taskID: taskId },
         UpdateExpression: `SET ${expressionParts.join(', ')}`,
         ExpressionAttributeNames: names,
         ExpressionAttributeValues: values,
@@ -205,17 +205,17 @@ export class TasksService {
       await this.writeAuditLog(taskId, user.userId, existing.status as string, dto.status);
 
       if (dto.status === 'Done') {
-        await this.publishMetric('TaskClosed', 1, updated.teamId as string);
+        await this.publishMetric('TaskClosed', 1, updated.teamID as string);
         // Calculate time-to-close in hours
         const createdAt = new Date(existing.createdAt as string).getTime();
         const closedAt = Date.now();
         const hoursToClose = (closedAt - createdAt) / (1000 * 60 * 60);
-        await this.publishMetric('TaskTimeToClose', hoursToClose, updated.teamId as string);
+        await this.publishMetric('TaskTimeToClose', hoursToClose, updated.teamID as string);
       }
     }
 
     // If assignee changed, trigger notification
-    if (dto.assigneeId && dto.assigneeId !== existing.assigneeId) {
+    if (dto.assigneeID && dto.assigneeID !== existing.assigneeID) {
       await this.publishAssignment(updated as any, user);
     }
 
@@ -229,8 +229,8 @@ export class TasksService {
     const result = await this.dynamo.send(
       new UpdateCommand({
         TableName: this.tableName,
-        Key: { taskId },
-        UpdateExpression: 'SET assigneeId = :aid, updatedAt = :ua',
+        Key: { taskID: taskId },
+        UpdateExpression: 'SET assigneeID = :aid, updatedAt = :ua',
         ExpressionAttributeValues: {
           ':aid': assigneeId,
           ':ua': new Date().toISOString(),
@@ -249,7 +249,7 @@ export class TasksService {
   async remove(taskId: string) {
     await this.findOne(taskId);
     await this.dynamo.send(
-      new DeleteCommand({ TableName: this.tableName, Key: { taskId } }),
+      new DeleteCommand({ TableName: this.tableName, Key: { taskID: taskId } }),
     );
     return { deleted: true };
   }
@@ -276,7 +276,7 @@ export class TasksService {
     const result = await this.dynamo.send(
       new UpdateCommand({
         TableName: this.tableName,
-        Key: { taskId },
+        Key: { taskID: taskId },
         UpdateExpression: 'SET imageKey = :ik, resizedImageKey = :rk, updatedAt = :ua',
         ExpressionAttributeValues: {
           ':ik': imageKey,
@@ -315,7 +315,7 @@ export class TasksService {
       const assignee = await this.dynamo.send(
         new GetCommand({
           TableName: this.usersTable,
-          Key: { userId: task.assigneeId },
+          Key: { userID: task.assigneeID },
         }),
       );
       if (assignee.Item) {
@@ -331,12 +331,12 @@ export class TasksService {
         TopicArn: this.snsTopicArn,
         Message: JSON.stringify({
           type: 'TASK_ASSIGNED',
-          taskId: task.taskId,
+          taskID: task.taskID,
           taskTitle: task.title,
-          assigneeId: task.assigneeId,
+          assigneeID: task.assigneeID,
           assigneeName,
           assigneeEmail,
-          teamId: task.teamId,
+          teamID: task.teamID,
           assignedBy: assigner.name,
           timestamp: new Date().toISOString(),
         }),
@@ -356,8 +356,8 @@ export class TasksService {
       new PutCommand({
         TableName: this.auditTable,
         Item: {
-          logId: uuidv4(),
-          taskId,
+          LogID: uuidv4(),
+          taskID: taskId,
           changedBy,
           oldStatus,
           newStatus,
