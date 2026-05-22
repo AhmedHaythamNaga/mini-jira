@@ -1,7 +1,14 @@
 "use client";
 
-import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
-import { toast } from 'sonner';
+import {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { toast } from "sonner";
 import {
   apiAddTaskComment,
   apiCreateProject,
@@ -29,7 +36,7 @@ import {
   type BackendTeam,
   type BackendUser,
   type JwtClaims,
-} from '@/lib/backend-api';
+} from "@/lib/backend-api";
 import {
   Activity,
   Comment,
@@ -42,8 +49,8 @@ import {
   Team,
   TeamName,
   User,
-} from '@/lib/types';
-import { resolveTeamId } from '@/lib/utils';
+} from "@/lib/types";
+import { resolveTeamId } from "@/lib/utils";
 
 interface AppState {
   user: User | null;
@@ -65,10 +72,10 @@ interface AppContextValue extends AppState {
   logout: () => void;
   setTeamFilter: (team: TeamName) => void;
   setSearchQuery: (query: string) => void;
-  updateTaskStatus: (taskId: string, status: Task['status']) => void;
+  updateTaskStatus: (taskId: string, status: Task["status"]) => void;
   updateTask: (taskId: string, patch: Partial<Task>) => void;
   deleteTask: (taskId: string) => void;
-  createTask: (input: CreateTaskInput, imageFile?: File) => void;
+  createTask: (input: CreateTaskInput, imageFile?: File) => Promise<boolean>;
   addComment: (taskId: string, content: string) => void;
   markNotificationRead: (notificationId: string) => void;
   createProject: (input: CreateProjectInput) => void;
@@ -81,8 +88,8 @@ const AppContext = createContext<AppContextValue | null>(null);
 
 const initialState: AppState = {
   user: null,
-  teamFilter: 'All',
-  searchQuery: '',
+  teamFilter: "All",
+  searchQuery: "",
   users: [],
   teams: [],
   tasks: [],
@@ -94,9 +101,9 @@ const initialState: AppState = {
 };
 
 const demoCredentials: Record<string, { email: string; password: string }> = {
-  'u-ali': { email: 'ali@company.com', password: 'password' },
-  'u-sara': { email: 'sara@company.com', password: 'password' },
-  'u-omar': { email: 'omar@company.com', password: 'password' },
+  "u-ali": { email: "ali@company.com", password: "password" },
+  "u-sara": { email: "sara@company.com", password: "password" },
+  "u-omar": { email: "omar@company.com", password: "password" },
 };
 
 type Session = {
@@ -105,88 +112,94 @@ type Session = {
 };
 
 function sanitizeDeadline(deadline?: string) {
-  if (!deadline?.trim()) return '';
+  if (!deadline?.trim()) return "";
   const parsed = Date.parse(deadline);
-  return Number.isNaN(parsed) ? '' : deadline;
+  return Number.isNaN(parsed) ? "" : deadline;
 }
 
-function normalizePriority(priority?: string): Task['priority'] {
-  switch ((priority ?? '').toLowerCase()) {
-    case 'low':
-      return 'low';
-    case 'high':
-      return 'high';
-    case 'critical':
-    case 'urgent':
-      return 'urgent';
+function normalizePriority(priority?: string): Task["priority"] {
+  switch ((priority ?? "").toLowerCase()) {
+    case "low":
+      return "low";
+    case "high":
+      return "high";
+    case "critical":
+    case "urgent":
+      return "urgent";
     default:
-      return 'medium';
+      return "medium";
   }
 }
 
 function getDisplayName(name?: string, email?: string) {
-  return name ?? email ?? 'User';
+  return name ?? email ?? "User";
 }
 
-function normalizeStatus(status?: string): Task['status'] {
-  const value = (status ?? '').toLowerCase();
-  if (value.includes('progress')) return 'in-progress';
-  if (value.includes('review')) return 'in-review';
-  if (value.includes('done')) return 'done';
-  return 'todo';
+function normalizeStatus(status?: string): Task["status"] {
+  const value = (status ?? "").toLowerCase();
+  if (value.includes("progress")) return "in-progress";
+  if (value.includes("review")) return "in-review";
+  if (value.includes("done")) return "done";
+  return "todo";
 }
 
-function backendStatus(status: Task['status']) {
+function backendStatus(status: Task["status"]) {
   switch (status) {
-    case 'todo':
-      return 'To Do';
-    case 'in-progress':
-      return 'In Progress';
-    case 'in-review':
-      return 'In Review';
-    case 'done':
-      return 'Done';
+    case "todo":
+      return "To Do";
+    case "in-progress":
+      return "In Progress";
+    case "in-review":
+      return "In Review";
+    case "done":
+      return "Done";
   }
 }
 
 function toTeamName(teamId: string | undefined, teams: BackendTeam[] = []) {
-  if (!teamId) return 'All';
-  const team = teams.find((item) => item.teamID === teamId || item.name === teamId);
-  return team?.name ?? 'All';
+  if (!teamId) return "All";
+  const team = teams.find(
+    (item) => item.teamID === teamId || item.name === teamId,
+  );
+  return team?.name ?? "All";
 }
 
 function normalizeUser(user: BackendUser, teams: BackendTeam[] = []): User {
-  const displayName = user.name ?? user.email ?? 'User';
+  const displayName = user.name ?? user.email ?? "User";
   return {
     id: user.userID,
     name: displayName,
     email: user.email,
-    password: '',
-    role: (user.role as User['role']) ?? 'employee',
+    password: "",
+    role: (user.role as User["role"]) ?? "employee",
     teamId: user.teamID,
     team: toTeamName(user.teamID, teams),
     avatar: displayName
-      .split(' ')
+      .split(" ")
       .filter(Boolean)
       .slice(0, 2)
       .map((part) => part[0]?.toUpperCase())
-      .join(''),
+      .join(""),
   };
 }
 
-function normalizeTask(task: BackendTask, users: User[], teams: BackendTeam[]): Task {
+function normalizeTask(
+  task: BackendTask,
+  users: User[],
+  teams: BackendTeam[],
+): Task {
   const assignee = users.find((user) => user.id === task.assigneeID);
   return {
     id: task.taskID,
     title: task.title,
-    description: task.description ?? '',
+    description: task.description ?? "",
     priority: normalizePriority(task.priority),
     status: normalizeStatus(task.status),
     team: toTeamName(task.teamID, teams),
     teamId: task.teamID,
-    assigneeId: task.assigneeID ?? '',
-    assigneeName: assignee?.name ?? 'Unassigned',
-    projectId: task.projectID ?? '',
+    assigneeId: task.assigneeID ?? "",
+    assigneeName: assignee?.name ?? "Unassigned",
+    projectId: task.projectID ?? "",
     deadline: sanitizeDeadline(task.deadline),
     createdAt: task.createdAt ?? new Date().toISOString(),
     updatedAt: task.updatedAt ?? task.createdAt ?? new Date().toISOString(),
@@ -199,8 +212,8 @@ function normalizeProject(project: BackendProject, users: User[]): Project {
   return {
     id: project.projectID,
     name: project.name,
-    description: project.description ?? '',
-    team: creator?.team ?? 'All',
+    description: project.description ?? "",
+    team: creator?.team ?? "All",
     createdAt: project.createdAt ?? new Date().toISOString(),
     createdById: project.createdBy,
   };
@@ -213,43 +226,48 @@ function normalizeComment(comment: BackendComment): Comment {
     authorId?: string;
   };
   return {
-    id: raw.commentID ?? raw.commentId ?? '',
-    taskId: raw.taskID ?? raw.taskId ?? '',
-    userId: raw.authorID ?? raw.authorId ?? '',
-    userName: raw.authorName ?? 'User',
+    id: raw.commentID ?? raw.commentId ?? "",
+    taskId: raw.taskID ?? raw.taskId ?? "",
+    userId: raw.authorID ?? raw.authorId ?? "",
+    userName: raw.authorName ?? "User",
     content: raw.content,
     createdAt: raw.createdAt ?? new Date().toISOString(),
   };
 }
 
 function normalizeActivity(log: BackendAuditLog): Activity {
-  const id = log.LogID ?? (log as { logId?: string }).logId ?? crypto.randomUUID();
-  const taskId = log.taskID ?? (log as { taskId?: string }).taskId ?? '';
+  const id =
+    log.LogID ?? (log as { logId?: string }).logId ?? crypto.randomUUID();
+  const taskId = log.taskID ?? (log as { taskId?: string }).taskId ?? "";
   const action =
     log.oldStatus && log.newStatus
       ? `changed status from ${log.oldStatus} to ${log.newStatus}`
-      : ((log as { action?: string }).action ?? 'updated task');
+      : ((log as { action?: string }).action ?? "updated task");
   return {
     id,
     taskId,
-    userId: log.changedBy ?? 'system',
-    userName: log.changedBy ?? 'System',
+    userId: log.changedBy ?? "system",
+    userName: log.changedBy ?? "System",
     action,
     timestamp: log.timestamp ?? new Date().toISOString(),
   };
 }
 
-function buildNotifications(tasks: Task[], comments: Comment[], activities: Activity[]) {
+function buildNotifications(
+  tasks: Task[],
+  comments: Comment[],
+  activities: Activity[],
+) {
   const notifications: Notification[] = [];
 
   for (const task of tasks) {
     notifications.push({
       id: `notify-${task.id}-assigned`,
-      title: 'Task assigned',
+      title: "Task assigned",
       message: `${task.title} is assigned to ${task.assigneeName}.`,
       timestamp: task.updatedAt,
       read: false,
-      type: 'task_assigned',
+      type: "task_assigned",
       taskId: task.id,
     });
   }
@@ -257,11 +275,11 @@ function buildNotifications(tasks: Task[], comments: Comment[], activities: Acti
   for (const comment of comments) {
     notifications.push({
       id: `notify-${comment.id}-comment`,
-      title: 'Comment added',
+      title: "Comment added",
       message: `${comment.userName} commented on a task.`,
       timestamp: comment.createdAt,
       read: false,
-      type: 'comment_added',
+      type: "comment_added",
       taskId: comment.taskId,
     });
   }
@@ -269,16 +287,18 @@ function buildNotifications(tasks: Task[], comments: Comment[], activities: Acti
   for (const activity of activities) {
     notifications.push({
       id: `notify-${activity.id}-status`,
-      title: 'Status changed',
+      title: "Status changed",
       message: activity.action,
       timestamp: activity.timestamp,
       read: false,
-      type: 'status_changed',
+      type: "status_changed",
       taskId: activity.taskId,
     });
   }
 
-  return notifications.sort((left, right) => right.timestamp.localeCompare(left.timestamp));
+  return notifications.sort((left, right) =>
+    right.timestamp.localeCompare(left.timestamp),
+  );
 }
 
 function createSessionFromTokens(tokens: AuthTokens): Session {
@@ -287,18 +307,18 @@ function createSessionFromTokens(tokens: AuthTokens): Session {
     tokens,
     user: {
       id: claims.sub,
-      name: (claims.name as string) ?? claims.email ?? 'User',
-      email: claims.email ?? '',
-      password: '',
-      role: ((claims['custom:role'] as string) ?? 'employee') as User['role'],
-      team: 'All',
-      teamId: (claims['custom:teamId'] as string | undefined) || undefined,
-      avatar: ((claims.name as string) ?? claims.email ?? 'U')
-        .split(' ')
+      name: (claims.name as string) ?? claims.email ?? "User",
+      email: claims.email ?? "",
+      password: "",
+      role: ((claims["custom:role"] as string) ?? "employee") as User["role"],
+      team: "All",
+      teamId: (claims["custom:teamId"] as string | undefined) || undefined,
+      avatar: ((claims.name as string) ?? claims.email ?? "U")
+        .split(" ")
         .filter(Boolean)
         .slice(0, 2)
         .map((part) => part[0]?.toUpperCase())
-        .join(''),
+        .join(""),
     },
   };
 }
@@ -317,17 +337,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const currentUser = activeSession.user;
       const token = activeSession.tokens.idToken;
 
-      const [tasksRaw, projectsRaw] = await Promise.all([apiGetTasks(token), apiGetProjects(token)]);
+      const [tasksRaw, projectsRaw] = await Promise.all([
+        apiGetTasks(token),
+        apiGetProjects(token),
+      ]);
 
       let teamsRaw: BackendTeam[] = [];
       let usersRaw: BackendUser[] = [];
 
-      if (currentUser.role === 'manager' || currentUser.role === 'admin') {
-        const [teamsResponse, usersResponse] = await Promise.all([apiGetTeams(token), apiGetUsers(token)]);
+      if (currentUser.role === "manager" || currentUser.role === "admin") {
+        const [teamsResponse, usersResponse] = await Promise.all([
+          apiGetTeams(token),
+          apiGetUsers(token),
+        ]);
         teamsRaw = teamsResponse;
         usersRaw = usersResponse;
       } else {
-        usersRaw = [{ userID: currentUser.id, email: currentUser.email, name: currentUser.name, role: currentUser.role, teamID: currentUser.teamId }];
+        usersRaw = [
+          {
+            userID: currentUser.id,
+            email: currentUser.email,
+            name: currentUser.name,
+            role: currentUser.role,
+            teamID: currentUser.teamId,
+          },
+        ];
         if (currentUser.teamId) {
           try {
             teamsRaw = [await apiGetTeam(token, currentUser.teamId)];
@@ -337,19 +371,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      const taskAssigneeIds = Array.from(new Set(tasksRaw.map((task) => task.assigneeID).filter(Boolean) as string[]));
-      const projectCreatorIds = Array.from(new Set(projectsRaw.map((project) => project.createdBy).filter(Boolean) as string[]));
-      const missingUserIds = [...taskAssigneeIds, ...projectCreatorIds].filter((id) => !usersRaw.some((user) => user.userID === id));
+      const taskAssigneeIds = Array.from(
+        new Set(
+          tasksRaw.map((task) => task.assigneeID).filter(Boolean) as string[],
+        ),
+      );
+      const projectCreatorIds = Array.from(
+        new Set(
+          projectsRaw
+            .map((project) => project.createdBy)
+            .filter(Boolean) as string[],
+        ),
+      );
+      const missingUserIds = [...taskAssigneeIds, ...projectCreatorIds].filter(
+        (id) => !usersRaw.some((user) => user.userID === id),
+      );
 
-      const resolvableUserIds = missingUserIds.filter((id) => !/^assignee\d+$/i.test(id));
+      const resolvableUserIds = missingUserIds.filter(
+        (id) => !/^assignee\d+$/i.test(id),
+      );
       const extraUsers = await Promise.all(
         resolvableUserIds.map((id) => apiGetUser(token, id).catch(() => null)),
       );
-      usersRaw = [...usersRaw, ...extraUsers.filter(Boolean) as BackendUser[]];
+      usersRaw = [
+        ...usersRaw,
+        ...(extraUsers.filter(Boolean) as BackendUser[]),
+      ];
 
-      const normalizedUsers = usersRaw.map((user) => normalizeUser(user, teamsRaw));
+      const normalizedUsers = usersRaw.map((user) =>
+        normalizeUser(user, teamsRaw),
+      );
       const normalizedTeams = teamsRaw.map((team) => {
-        const id = team.teamID ?? (team as { teamId?: string }).teamId ?? '';
+        const id = team.teamID ?? (team as { teamId?: string }).teamId ?? "";
         return {
           id,
           name: team.name,
@@ -357,28 +410,54 @@ export function AppProvider({ children }: { children: ReactNode }) {
             (user) => user.teamID === id || user.teamID === team.name,
           ).length,
           projectCount: projectsRaw.filter(
-            (project) => normalizedUsers.find((user) => user.id === project.createdBy)?.teamId === id,
+            (project) =>
+              normalizedUsers.find((user) => user.id === project.createdBy)
+                ?.teamId === id,
           ).length,
         };
       });
 
-      const normalizedTasks = tasksRaw.map((task) => normalizeTask(task, normalizedUsers, teamsRaw));
-      const normalizedProjects = projectsRaw.map((project) => normalizeProject(project, normalizedUsers));
+      const normalizedTasks = tasksRaw.map((task) =>
+        normalizeTask(task, normalizedUsers, teamsRaw),
+      );
+      const normalizedProjects = projectsRaw.map((project) =>
+        normalizeProject(project, normalizedUsers),
+      );
 
-      const commentSets = await Promise.all(normalizedTasks.map((task) => apiGetTaskComments(token, task.id).catch(() => [] as BackendComment[])));
-      const auditSets = await Promise.all(normalizedTasks.map((task) => apiGetTaskAudit(token, task.id).catch(() => [] as BackendAuditLog[])));
+      const commentSets = await Promise.all(
+        normalizedTasks.map((task) =>
+          apiGetTaskComments(token, task.id).catch(
+            () => [] as BackendComment[],
+          ),
+        ),
+      );
+      const auditSets = await Promise.all(
+        normalizedTasks.map((task) =>
+          apiGetTaskAudit(token, task.id).catch(() => [] as BackendAuditLog[]),
+        ),
+      );
 
       const normalizedComments = commentSets.flat().map(normalizeComment);
       const normalizedActivities = auditSets.flat().map(normalizeActivity);
-      const notifications = buildNotifications(normalizedTasks, normalizedComments, normalizedActivities);
+      const notifications = buildNotifications(
+        normalizedTasks,
+        normalizedComments,
+        normalizedActivities,
+      );
 
       setState((current) => ({
         ...current,
         user: {
           ...currentUser,
-          team: currentUser.role === 'employee' && teamsRaw[0] ? teamsRaw[0].name : currentUser.team,
+          team:
+            currentUser.role === "employee" && teamsRaw[0]
+              ? teamsRaw[0].name
+              : currentUser.team,
         },
-        teamFilter: currentUser.role === 'employee' ? currentUser.team : current.teamFilter,
+        teamFilter:
+          currentUser.role === "employee"
+            ? currentUser.team
+            : current.teamFilter,
         users: normalizedUsers,
         teams: normalizedTeams,
         tasks: normalizedTasks,
@@ -390,17 +469,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }));
     } catch (error) {
       console.error(error);
-      toast.error(error instanceof Error ? error.message : 'Unable to load data from backend');
-      setSession(null);
-      window.localStorage.removeItem('mini-jira-session');
-      setState((current) => ({ ...current, user: null, ready: true }));
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to load data from backend",
+      );
+      setState((current) => ({
+        ...current,
+        user: activeSession.user,
+        ready: true,
+      }));
     }
   };
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
 
-    const stored = window.localStorage.getItem('mini-jira-session');
+    const stored = window.localStorage.getItem("mini-jira-session");
     if (!stored) {
       setState((current) => ({ ...current, ready: true }));
       return;
@@ -411,18 +496,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSession(parsed);
       void loadSession(parsed);
     } catch {
-      window.localStorage.removeItem('mini-jira-session');
+      window.localStorage.removeItem("mini-jira-session");
       setState((current) => ({ ...current, ready: true }));
     }
   }, []);
 
   useEffect(() => {
-    if (!state.ready || typeof window === 'undefined') return;
+    if (!state.ready || typeof window === "undefined") return;
 
     if (session) {
-      window.localStorage.setItem('mini-jira-session', JSON.stringify(session));
+      window.localStorage.setItem("mini-jira-session", JSON.stringify(session));
     } else {
-      window.localStorage.removeItem('mini-jira-session');
+      window.localStorage.removeItem("mini-jira-session");
     }
   }, [session, state.ready]);
 
@@ -432,10 +517,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const nextSession = createSessionFromTokens(tokens);
       setSession(nextSession);
       await loadSession(nextSession);
-      toast.success(`Welcome back, ${getDisplayName(nextSession.user.name, nextSession.user.email).split(' ')[0]}`);
+      toast.success(
+        `Welcome back, ${getDisplayName(nextSession.user.name, nextSession.user.email).split(" ")[0]}`,
+      );
       return true;
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Invalid email or password');
+      toast.error(
+        error instanceof Error ? error.message : "Invalid email or password",
+      );
       return false;
     }
   };
@@ -449,23 +538,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setSession(null);
     setState({ ...initialState, ready: true });
-    toast.success('Logged out successfully');
+    toast.success("Logged out successfully");
   };
 
   const setTeamFilter = (team: TeamName) => {
-    setState((current) => ({ ...current, teamFilter: current.user?.role === 'employee' ? current.user.team : team }));
+    setState((current) => ({
+      ...current,
+      teamFilter: current.user?.role === "employee" ? current.user.team : team,
+    }));
   };
 
   const setSearchQuery = (query: string) => {
     setState((current) => ({ ...current, searchQuery: query }));
   };
 
-  const updateTaskStatus = (taskId: string, status: Task['status']) => {
+  const updateTaskStatus = (taskId: string, status: Task["status"]) => {
     if (!session) return;
-    void apiUpdateTask(session.tokens.idToken, taskId, { status: backendStatus(status) })
+    void apiUpdateTask(session.tokens.idToken, taskId, {
+      status: backendStatus(status),
+    })
       .then(() => loadSession(session))
-      .catch((error) => toast.error(error instanceof Error ? error.message : 'Failed to update task'));
-    toast.success('Task status updated');
+      .catch((error) =>
+        toast.error(
+          error instanceof Error ? error.message : "Failed to update task",
+        ),
+      );
+    toast.success("Task status updated");
   };
 
   const updateTask = (taskId: string, patch: Partial<Task>) => {
@@ -474,7 +572,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (patch.title !== undefined) body.title = patch.title;
     if (patch.description !== undefined) body.description = patch.description;
     if (patch.status !== undefined) body.status = backendStatus(patch.status);
-    if (patch.priority !== undefined) body.priority = patch.priority === 'urgent' ? 'critical' : patch.priority;
+    if (patch.priority !== undefined)
+      body.priority = patch.priority === "urgent" ? "critical" : patch.priority;
     if (patch.deadline !== undefined) body.deadline = patch.deadline;
     if (patch.assigneeId !== undefined) body.assigneeID = patch.assigneeId;
     if (patch.teamId !== undefined) body.teamID = patch.teamId;
@@ -482,28 +581,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     void apiUpdateTask(session.tokens.idToken, taskId, body)
       .then(() => loadSession(session))
-      .catch((error) => toast.error(error instanceof Error ? error.message : 'Failed to save task'));
-    toast.success('Task saved');
+      .catch((error) =>
+        toast.error(
+          error instanceof Error ? error.message : "Failed to save task",
+        ),
+      );
+    toast.success("Task saved");
   };
 
   const deleteTask = (taskId: string) => {
     if (!session) return;
     void apiDeleteTask(session.tokens.idToken, taskId)
       .then(() => loadSession(session))
-      .catch((error) => toast.error(error instanceof Error ? error.message : 'Failed to delete task'));
-    toast.success('Task deleted successfully');
+      .catch((error) =>
+        toast.error(
+          error instanceof Error ? error.message : "Failed to delete task",
+        ),
+      );
+    toast.success("Task deleted successfully");
   };
 
   const refreshTeams = async () => {
     if (!session) return;
-    if (session.user.role !== 'manager' && session.user.role !== 'admin') return;
+    if (session.user.role !== "manager" && session.user.role !== "admin")
+      return;
 
     try {
       const teamsRaw = await apiGetTeams(session.tokens.idToken);
       setState((current) => ({
         ...current,
         teams: teamsRaw.map((team) => {
-          const id = team.teamID ?? (team as { teamId?: string }).teamId ?? '';
+          const id = team.teamID ?? (team as { teamId?: string }).teamId ?? "";
           return {
             id,
             name: team.name,
@@ -512,50 +620,58 @@ export function AppProvider({ children }: { children: ReactNode }) {
             ).length,
             projectCount: current.projects.filter(
               (project) =>
-                current.users.find((user) => user.id === project.createdById)?.teamId === id,
+                current.users.find((user) => user.id === project.createdById)
+                  ?.teamId === id,
             ).length,
           };
         }),
       }));
     } catch (error) {
       console.error(error);
-      toast.error('Could not refresh teams list');
+      toast.error("Could not refresh teams list");
     }
   };
 
-  const createTask = (input: CreateTaskInput, imageFile?: File) => {
-    if (!session) return;
-    const teamId = input.teamId || state.user?.teamId || '';
+  const createTask = async (input: CreateTaskInput, imageFile?: File) => {
+    if (!session) return false;
+    const teamId = input.teamId || state.user?.teamId || "";
     const body = {
       title: input.title,
       description: input.description,
-      priority: input.priority === 'urgent' ? 'critical' : input.priority,
+      priority: input.priority === "urgent" ? "critical" : input.priority,
       deadline: input.deadline,
       assigneeID: input.assigneeId,
       teamID: teamId,
-      projectID: input.projectId,
+      ...(input.projectId ? { projectID: input.projectId } : {}),
     };
-    void apiCreateTask(session.tokens.idToken, body)
-      .then(async (created) => {
-        if (imageFile) {
-          try {
-            await apiUploadTaskImage(session.tokens.idToken, created.taskID, imageFile);
-          } catch (error) {
-            await loadSession(session);
-            toast.error(
-              error instanceof Error
-                ? `Task created, but image upload failed: ${error.message}`
-                : 'Task created, but image upload failed',
-            );
-            return;
-          }
+    try {
+      const created = await apiCreateTask(session.tokens.idToken, body);
+      if (imageFile) {
+        try {
+          await apiUploadTaskImage(
+            session.tokens.idToken,
+            created.taskID,
+            imageFile,
+          );
+        } catch (error) {
+          await loadSession(session);
+          toast.error(
+            error instanceof Error
+              ? `Task created, but image upload failed: ${error.message}`
+              : "Task created, but image upload failed",
+          );
+          return true;
         }
-        await loadSession(session);
-        toast.success(imageFile ? 'Task created with image' : 'Task created');
-      })
-      .catch((error) => {
-        toast.error(error instanceof Error ? error.message : 'Failed to create task');
-      });
+      }
+      await loadSession(session);
+      toast.success(imageFile ? "Task created with image" : "Task created");
+      return true;
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to create task",
+      );
+      return false;
+    }
   };
 
   const addComment = (taskId: string, content: string) => {
@@ -570,24 +686,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
             normalized,
           ],
         }));
-        toast.success('Comment added');
+        toast.success("Comment added");
       })
-      .catch((error) => toast.error(error instanceof Error ? error.message : 'Failed to add comment'));
+      .catch((error) =>
+        toast.error(
+          error instanceof Error ? error.message : "Failed to add comment",
+        ),
+      );
   };
 
   const markNotificationRead = (notificationId: string) => {
     setState((current) => ({
       ...current,
-      notifications: current.notifications.map((notification) => (notification.id === notificationId ? { ...notification, read: true } : notification)),
+      notifications: current.notifications.map((notification) =>
+        notification.id === notificationId
+          ? { ...notification, read: true }
+          : notification,
+      ),
     }));
   };
 
   const createProject = (input: CreateProjectInput) => {
     if (!session) return;
-    void apiCreateProject(session.tokens.idToken, { name: input.name, description: input.description })
+    void apiCreateProject(session.tokens.idToken, {
+      name: input.name,
+      description: input.description,
+    })
       .then(() => loadSession(session))
-      .catch((error) => toast.error(error instanceof Error ? error.message : 'Failed to create project'));
-    toast.success('Project created');
+      .catch((error) =>
+        toast.error(
+          error instanceof Error ? error.message : "Failed to create project",
+        ),
+      );
+    toast.success("Project created");
   };
 
   const createUser = (input: CreateUserInput) => {
@@ -600,16 +731,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       teamID: resolveTeamId(input.team, state.teams),
     })
       .then(() => loadSession(session))
-      .catch((error) => toast.error(error instanceof Error ? error.message : 'Failed to create user'));
-    toast.success('User created');
+      .catch((error) =>
+        toast.error(
+          error instanceof Error ? error.message : "Failed to create user",
+        ),
+      );
+    toast.success("User created");
   };
 
   const createTeam = (name: string) => {
     if (!session) return;
     void apiCreateTeam(session.tokens.idToken, { name })
       .then(() => loadSession(session))
-      .catch((error) => toast.error(error instanceof Error ? error.message : 'Failed to create team'));
-    toast.success('Team created');
+      .catch((error) =>
+        toast.error(
+          error instanceof Error ? error.message : "Failed to create team",
+        ),
+      );
+    toast.success("Team created");
   };
 
   const value = useMemo<AppContextValue>(
@@ -640,7 +779,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 export function useApp() {
   const context = useContext(AppContext);
   if (!context) {
-    throw new Error('useApp must be used within AppProvider');
+    throw new Error("useApp must be used within AppProvider");
   }
 
   return context;
