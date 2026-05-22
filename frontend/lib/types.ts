@@ -1,5 +1,6 @@
 export type Role = 'manager' | 'employee' | 'admin';
-export type TeamName = 'All' | 'Frontend' | 'Backend';
+/** Team display name from the API, or "All" for filters. */
+export type TeamName = string;
 export type Priority = 'low' | 'medium' | 'high' | 'urgent';
 export type TaskStatus = 'todo' | 'in-progress' | 'in-review' | 'done';
 export type NotificationType = 'task_assigned' | 'comment_added' | 'deadline_approaching' | 'status_changed';
@@ -73,7 +74,7 @@ export interface Notification {
 
 export interface Team {
   id: string;
-  name: Exclude<TeamName, 'All'>;
+  name: string;
   memberCount: number;
   projectCount: number;
 }

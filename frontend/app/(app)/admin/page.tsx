@@ -1,17 +1,30 @@
 "use client";
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { UserPlus, Users } from 'lucide-react';
 import { useApp } from '@/lib/app-state';
-import { canManageAll, teamStyle } from '@/lib/utils';
+import { canManageAll, defaultTeamName, teamStyle } from '@/lib/utils';
 import { CreateUserInput } from '@/lib/types';
 
 export default function AdminPage() {
   const { user, users, teams, createUser, createTeam } = useApp();
-  const [userDraft, setUserDraft] = useState<CreateUserInput>({ name: '', email: '', password: '', role: 'employee', team: 'Frontend' });
+  const [userDraft, setUserDraft] = useState<CreateUserInput>({
+    name: '',
+    email: '',
+    password: '',
+    role: 'employee',
+    team: '',
+  });
   const [teamName, setTeamName] = useState('');
 
   const sortedUsers = useMemo(() => [...users].sort((left, right) => left.name.localeCompare(right.name)), [users]);
+  const defaultTeam = defaultTeamName(teams);
+
+  useEffect(() => {
+    if (!userDraft.team && defaultTeam) {
+      setUserDraft((current) => ({ ...current, team: defaultTeam }));
+    }
+  }, [defaultTeam, userDraft.team]);
 
   if (!canManageAll(user)) {
     return (
@@ -71,10 +84,17 @@ export default function AdminPage() {
             </label>
             <label>
               <span>Team</span>
-              <select value={userDraft.team} onChange={(event) => setUserDraft({ ...userDraft, team: event.target.value as CreateUserInput['team'] })}>
-                <option value="Frontend">Frontend</option>
-                <option value="Backend">Backend</option>
-                <option value="All">All</option>
+              <select
+                value={userDraft.team}
+                onChange={(event) => setUserDraft({ ...userDraft, team: event.target.value })}
+                disabled={!teams.length}
+              >
+                {!teams.length ? <option value="">No teams — create one first</option> : null}
+                {teams.map((team) => (
+                  <option key={team.id} value={team.name}>
+                    {team.name}
+                  </option>
+                ))}
               </select>
             </label>
             <button
@@ -82,7 +102,7 @@ export default function AdminPage() {
               onClick={() => {
                 if (!userDraft.name.trim() || !userDraft.email.trim() || !userDraft.password.trim()) return;
                 createUser(userDraft);
-                setUserDraft({ name: '', email: '', password: '', role: 'employee', team: 'Frontend' });
+                setUserDraft({ name: '', email: '', password: '', role: 'employee', team: defaultTeam });
               }}
             >
               Add User

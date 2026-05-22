@@ -243,16 +243,23 @@ export function apiAttachTaskImage(token: string, taskId: string, imageKey: stri
   }, token);
 }
 
-/** Upload image to S3 via presigned URL, then attach key to the task. */
-export async function apiUploadTaskImage(token: string, taskId: string, file: File) {
-  const { uploadUrl, imageKey } = await apiGetTaskUploadUrl(token, taskId);
-  const uploadResponse = await fetch(uploadUrl, {
-    method: 'PUT',
-    body: file,
-    headers: { 'Content-Type': file.type || 'image/jpeg' },
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Failed to read image file'));
+    reader.readAsDataURL(file);
   });
-  if (!uploadResponse.ok) {
-    throw new Error('Failed to upload image to storage');
-  }
-  return apiAttachTaskImage(token, taskId, imageKey);
+}
+
+/** Upload image through the API (same-origin) so S3 CORS is not required in the browser. */
+export async function apiUploadTaskImage(token: string, taskId: string, file: File) {
+  const imageBase64 = await readFileAsDataUrl(file);
+  return requestJson<BackendTask>(`/tasks/${taskId}/image-upload`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      imageBase64,
+      contentType: file.type || 'image/jpeg',
+    }),
+  }, token);
 }

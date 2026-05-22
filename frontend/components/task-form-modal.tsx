@@ -3,8 +3,8 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { ImagePlus, X } from 'lucide-react';
 import { useApp } from '@/lib/app-state';
-import { CreateTaskInput, TeamName } from '@/lib/types';
-import { canManageAll } from '@/lib/utils';
+import { CreateTaskInput } from '@/lib/types';
+import { canManageAll, defaultTeamName } from '@/lib/utils';
 
 interface TaskFormModalProps {
   open: boolean;
@@ -12,13 +12,13 @@ interface TaskFormModalProps {
 }
 
 export function TaskFormModal({ open, onClose }: TaskFormModalProps) {
-  const { createTask, users, user, projects } = useApp();
+  const { createTask, users, user, projects, teams } = useApp();
   const [form, setForm] = useState<CreateTaskInput>({
     title: '',
     description: '',
     priority: 'medium',
     assigneeId: user?.id ?? users[0]?.id ?? '',
-    team: user?.team ?? 'Frontend',
+    team: '',
     projectId: '',
     deadline: new Date().toISOString().slice(0, 10),
   });
@@ -33,12 +33,12 @@ export function TaskFormModal({ open, onClose }: TaskFormModalProps) {
 
   useEffect(() => {
     if (open) {
-      const defaultTeam = user?.team === 'All' || !user?.team ? 'Frontend' : user.team;
-      const matching = projects.filter((project) => project.team === defaultTeam || project.team === 'All');
+      const initialTeam = defaultTeamName(teams, user?.team);
+      const matching = projects.filter((project) => project.team === initialTeam || project.team === 'All');
       setForm((current) => ({
         ...current,
         assigneeId: user?.id ?? users[0]?.id ?? '',
-        team: defaultTeam,
+        team: initialTeam,
         projectId: matching[0]?.id ?? projects[0]?.id ?? '',
       }));
     } else {
@@ -46,7 +46,7 @@ export function TaskFormModal({ open, onClose }: TaskFormModalProps) {
       setImagePreview(null);
       setSubmitting(false);
     }
-  }, [open, user, users, projects]);
+  }, [open, user, users, projects, teams]);
 
   useEffect(() => {
     if (!open) return;
@@ -72,7 +72,7 @@ export function TaskFormModal({ open, onClose }: TaskFormModalProps) {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!form.projectId) return;
+    if (!form.projectId || !form.team) return;
     setSubmitting(true);
     try {
       createTask(form, imageFile ?? undefined);
@@ -132,9 +132,11 @@ export function TaskFormModal({ open, onClose }: TaskFormModalProps) {
           <label>
             <span>Team</span>
             <select
+              required
               value={form.team}
+              disabled={!teams.length}
               onChange={(event) => {
-                const team = event.target.value as TeamName;
+                const team = event.target.value;
                 const nextProjects = projects.filter((project) => project.team === team || project.team === 'All');
                 setForm({
                   ...form,
@@ -143,8 +145,12 @@ export function TaskFormModal({ open, onClose }: TaskFormModalProps) {
                 });
               }}
             >
-              <option value="Frontend">Frontend</option>
-              <option value="Backend">Backend</option>
+              {!teams.length ? <option value="">No teams available</option> : null}
+              {teams.map((team) => (
+                <option key={team.id} value={team.name}>
+                  {team.name}
+                </option>
+              ))}
             </select>
           </label>
           <label>
@@ -183,7 +189,7 @@ export function TaskFormModal({ open, onClose }: TaskFormModalProps) {
             <button type="button" className="button button--secondary" onClick={onClose} disabled={submitting}>
               Cancel
             </button>
-            <button type="submit" className="button button--primary" disabled={submitting || !form.projectId}>
+            <button type="submit" className="button button--primary" disabled={submitting || !form.projectId || !form.team}>
               {submitting ? 'Creating…' : 'Create Task'}
             </button>
           </div>

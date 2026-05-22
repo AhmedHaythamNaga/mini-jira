@@ -151,7 +151,7 @@ function backendStatus(status: Task['status']) {
 function toTeamName(teamId: string | undefined, teams: BackendTeam[] = []) {
   if (!teamId) return 'All';
   const team = teams.find((item) => item.teamID === teamId || item.name === teamId);
-  return (team?.name as TeamName) ?? 'All';
+  return team?.name ?? 'All';
 }
 
 function normalizeUser(user: BackendUser, teams: BackendTeam[] = []): User {
@@ -206,13 +206,18 @@ function normalizeProject(project: BackendProject, users: User[]): Project {
 }
 
 function normalizeComment(comment: BackendComment): Comment {
+  const raw = comment as BackendComment & {
+    commentId?: string;
+    taskId?: string;
+    authorId?: string;
+  };
   return {
-    id: comment.commentID,
-    taskId: comment.taskID,
-    userId: comment.authorID,
-    userName: comment.authorName,
-    content: comment.content,
-    createdAt: comment.createdAt,
+    id: raw.commentID ?? raw.commentId ?? '',
+    taskId: raw.taskID ?? raw.taskId ?? '',
+    userId: raw.authorID ?? raw.authorId ?? '',
+    userName: raw.authorName ?? 'User',
+    content: raw.content,
+    createdAt: raw.createdAt ?? new Date().toISOString(),
   };
 }
 
@@ -344,7 +349,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const normalizedUsers = usersRaw.map((user) => normalizeUser(user, teamsRaw));
       const normalizedTeams = teamsRaw.map((team) => ({
         id: team.teamID,
-        name: team.name as Exclude<TeamName, 'All'>,
+        name: team.name,
         memberCount: usersRaw.filter((user) => user.teamID === team.teamID || user.teamID === team.name).length,
         projectCount: projectsRaw.filter((project) => normalizedUsers.find((user) => user.id === project.createdBy)?.teamId === team.teamID).length,
       }));
@@ -363,7 +368,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...current,
         user: {
           ...currentUser,
-          team: currentUser.role === 'employee' && teamsRaw[0] ? (teamsRaw[0].name as TeamName) : currentUser.team,
+          team: currentUser.role === 'employee' && teamsRaw[0] ? teamsRaw[0].name : currentUser.team,
         },
         teamFilter: currentUser.role === 'employee' ? currentUser.team : current.teamFilter,
         users: normalizedUsers,
@@ -496,20 +501,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
     void apiCreateTask(session.tokens.idToken, body)
       .then(async (created) => {
         if (imageFile) {
-          await apiUploadTaskImage(session.tokens.idToken, created.taskID, imageFile);
+          try {
+            await apiUploadTaskImage(session.tokens.idToken, created.taskID, imageFile);
+          } catch (error) {
+            await loadSession(session);
+            toast.error(
+              error instanceof Error
+                ? `Task created, but image upload failed: ${error.message}`
+                : 'Task created, but image upload failed',
+            );
+            return;
+          }
         }
         await loadSession(session);
         toast.success(imageFile ? 'Task created with image' : 'Task created');
       })
-      .catch((error) => toast.error(error instanceof Error ? error.message : 'Failed to create task'));
+      .catch((error) => {
+        toast.error(error instanceof Error ? error.message : 'Failed to create task');
+      });
   };
 
   const addComment = (taskId: string, content: string) => {
     if (!session) return;
     void apiAddTaskComment(session.tokens.idToken, taskId, content)
-      .then(() => loadSession(session))
+      .then((created) => {
+        const normalized = normalizeComment(created);
+        setState((current) => ({
+          ...current,
+          comments: [
+            ...current.comments.filter((item) => item.id !== normalized.id),
+            normalized,
+          ],
+        }));
+        toast.success('Comment added');
+      })
       .catch((error) => toast.error(error instanceof Error ? error.message : 'Failed to add comment'));
-    toast.success('Comment added');
   };
 
   const markNotificationRead = (notificationId: string) => {

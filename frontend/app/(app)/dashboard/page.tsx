@@ -8,7 +8,7 @@ import { TaskFormModal } from '@/components/task-form-modal';
 import { canManageAll, filterTaskByScope, matchesSearch } from '@/lib/utils';
 
 export default function DashboardPage() {
-  const { user, tasks, teamFilter, searchQuery } = useApp();
+  const { user, tasks, teams, teamFilter, searchQuery } = useApp();
   const [createOpen, setCreateOpen] = useState(false);
   const displayName = user?.name ?? user?.email ?? 'User';
 
@@ -27,7 +27,7 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      <DashboardWidgets tasks={scopedTasks} managerView={canManageAll(user)} />
+      <DashboardWidgets tasks={scopedTasks} teams={teams} managerView={canManageAll(user)} />
 
       <TaskFormModal open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>

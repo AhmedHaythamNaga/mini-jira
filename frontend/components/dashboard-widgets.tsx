@@ -54,9 +54,11 @@ function MiniPieChart({ tasks }: { tasks: Task[] }) {
   );
 }
 
-function TeamBarChart({ tasks }: { tasks: Task[] }) {
-  const teams = ['Frontend', 'Backend'] as const;
-  const counts = teams.map((team) => ({ team, value: tasks.filter((task) => task.team === team && task.status === 'done').length }));
+function TeamBarChart({ tasks, teams }: { tasks: Task[]; teams: { id: string; name: string }[] }) {
+  const counts = teams.map((team) => ({
+    team: team.name,
+    value: tasks.filter((item) => item.team === team.name && item.status === 'done').length,
+  }));
   const max = Math.max(...counts.map((item) => item.value), 1);
 
   return (
@@ -76,7 +78,15 @@ function TeamBarChart({ tasks }: { tasks: Task[] }) {
   );
 }
 
-export function DashboardWidgets({ tasks, managerView }: { tasks: Task[]; managerView: boolean }) {
+export function DashboardWidgets({
+  tasks,
+  teams,
+  managerView,
+}: {
+  tasks: Task[];
+  teams: { id: string; name: string }[];
+  managerView: boolean;
+}) {
   const todo = tasks.filter((task) => task.status === 'todo').length;
   const progress = tasks.filter((task) => task.status === 'in-progress').length;
   const completed = tasks.filter((task) => task.status === 'done').length;
@@ -107,7 +117,7 @@ export function DashboardWidgets({ tasks, managerView }: { tasks: Task[]; manage
               <p>Manager view</p>
             </div>
           </header>
-          <TeamBarChart tasks={tasks} />
+          <TeamBarChart tasks={tasks} teams={teams} />
         </section>
       ) : null}
 

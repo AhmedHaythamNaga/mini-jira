@@ -1,14 +1,22 @@
 "use client";
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FolderPlus } from 'lucide-react';
 import { useApp } from '@/lib/app-state';
-import { canManageAll, formatDate, matchesSearch, teamStyle } from '@/lib/utils';
+import { canManageAll, defaultTeamName, formatDate, matchesSearch, teamStyle } from '@/lib/utils';
 import { CreateProjectInput } from '@/lib/types';
 
 export default function ProjectsPage() {
-  const { user, projects, teamFilter, searchQuery, createProject } = useApp();
-  const [draft, setDraft] = useState<CreateProjectInput>({ name: '', description: '', team: user?.team ?? 'Frontend' });
+  const { user, projects, teams, teamFilter, searchQuery, createProject } = useApp();
+  const [draft, setDraft] = useState<CreateProjectInput>({ name: '', description: '', team: '' });
+
+  const defaultTeam = defaultTeamName(teams, user?.team);
+
+  useEffect(() => {
+    if (!draft.team && defaultTeam) {
+      setDraft((current) => ({ ...current, team: defaultTeam }));
+    }
+  }, [defaultTeam, draft.team]);
 
   const visibleProjects = useMemo(
     () => {
@@ -52,10 +60,17 @@ export default function ProjectsPage() {
             </label>
             <label>
               <span>Team</span>
-              <select value={draft.team} onChange={(event) => setDraft({ ...draft, team: event.target.value as CreateProjectInput['team'] })}>
-                <option value="Frontend">Frontend</option>
-                <option value="Backend">Backend</option>
-                <option value="All">All</option>
+              <select
+                value={draft.team}
+                onChange={(event) => setDraft({ ...draft, team: event.target.value })}
+                disabled={!teams.length}
+              >
+                {!teams.length ? <option value="">No teams available</option> : null}
+                {teams.map((team) => (
+                  <option key={team.id} value={team.name}>
+                    {team.name}
+                  </option>
+                ))}
               </select>
             </label>
             <button
@@ -63,7 +78,7 @@ export default function ProjectsPage() {
               onClick={() => {
                 if (!draft.name.trim()) return;
                 createProject(draft);
-                setDraft({ name: '', description: '', team: user?.team ?? 'Frontend' });
+                setDraft({ name: '', description: '', team: defaultTeam });
               }}
             >
               Create Project

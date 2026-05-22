@@ -120,7 +120,7 @@ export function TaskDetailModal({ task, open, onClose }: TaskDetailModalProps) {
                       </button>
                     </form>
                     <div className="comment-list">
-                      {relatedComments.length ? relatedComments.map((item) => (
+                      {relatedComments.map((item) => (
                         <article key={item.id} className="comment-item">
                           <span className="avatar avatar--small">{initials(item.userName)}</span>
                           <div>
@@ -131,9 +131,7 @@ export function TaskDetailModal({ task, open, onClose }: TaskDetailModalProps) {
                             <p>{item.content}</p>
                           </div>
                         </article>
-                      )) : (
-                        <p className="muted">Be the first to comment.</p>
-                      )}
+                      ))}
                     </div>
                   </div>
                 ) : null}

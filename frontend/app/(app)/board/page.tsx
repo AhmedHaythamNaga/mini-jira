@@ -17,12 +17,12 @@ const columns: { status: TaskStatus; label: string }[] = [
 ];
 
 export default function BoardPage() {
-  const { user, tasks, teamFilter, searchQuery, updateTaskStatus, ready } = useApp();
+  const { user, tasks, teams, teamFilter, searchQuery, updateTaskStatus, ready } = useApp();
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [priorityFilter, setPriorityFilter] = useState<'all' | 'low' | 'medium' | 'high' | 'urgent'>('all');
-  const [teamScope, setTeamScope] = useState<'all' | 'Frontend' | 'Backend'>('all');
+  const [teamScope, setTeamScope] = useState('all');
 
   const boardTasks = useMemo(
     () =>
@@ -74,11 +74,16 @@ export default function BoardPage() {
           <option value="high">High</option>
           <option value="urgent">Urgent</option>
         </select>
-        <select value={teamScope} onChange={(event) => setTeamScope(event.target.value as typeof teamScope)}>
-          <option value="all">All teams</option>
-          <option value="Frontend">Frontend</option>
-          <option value="Backend">Backend</option>
-        </select>
+        {canManageAll(user) ? (
+          <select value={teamScope} onChange={(event) => setTeamScope(event.target.value)}>
+            <option value="all">All teams</option>
+            {teams.map((team) => (
+              <option key={team.id} value={team.name}>
+                {team.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
       </section>
 
       <section className="board">

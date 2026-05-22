@@ -17,15 +17,19 @@ export const priorityLabels: Record<Priority, string> = {
 
 export const priorityOrder: Priority[] = ['urgent', 'high', 'medium', 'low'];
 
-const TEAM_ID_BY_NAME: Record<Exclude<TeamName, 'All'>, string> = {
-  Frontend: 'team-frontend',
-  Backend: 'team-backend',
-};
+export function teamFilterOptions(teams: { id: string; name: string }[]) {
+  return ['All', ...teams.map((team) => team.name)];
+}
+
+export function defaultTeamName(teams: { name: string }[], userTeam?: string) {
+  if (userTeam && userTeam !== 'All') return userTeam;
+  return teams[0]?.name ?? '';
+}
 
 export function resolveTeamId(teamName: TeamName, teams: { id: string; name: string }[] = []) {
-  if (teamName === 'All') return '';
-  const match = teams.find((team) => team.name === teamName);
-  return match?.id ?? TEAM_ID_BY_NAME[teamName as Exclude<TeamName, 'All'>] ?? '';
+  if (!teamName || teamName === 'All') return '';
+  const match = teams.find((team) => team.name === teamName || team.id === teamName);
+  return match?.id ?? '';
 }
 
 export function parseDateSafe(value?: string) {
@@ -133,8 +137,12 @@ export function priorityStyle(priority: Priority | string) {
   }
 }
 
+const TEAM_BADGE_VARIANTS = ['badge--blue', 'badge--violet', 'badge--green', 'badge--orange'] as const;
+
 export function teamStyle(team: TeamName) {
-  if (team === 'Frontend') return 'badge badge--blue';
-  if (team === 'Backend') return 'badge badge--violet';
-  return 'badge badge--slate';
+  if (!team || team === 'All') return 'badge badge--slate';
+  const index =
+    Math.abs(team.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)) %
+    TEAM_BADGE_VARIANTS.length;
+  return `badge ${TEAM_BADGE_VARIANTS[index]}`;
 }

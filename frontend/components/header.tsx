@@ -5,17 +5,16 @@ import { Bell, CheckSquare, ChevronDown, LogOut, Menu, Search, ShieldCheck, User
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/lib/app-state';
 import { TeamName } from '@/lib/types';
-import { canManageAll } from '@/lib/utils';
+import { canManageAll, teamFilterOptions } from '@/lib/utils';
 
 interface HeaderProps {
   onMenuClick: () => void;
   onNotificationsClick: () => void;
 }
 
-const teamOptions: TeamName[] = ['All', 'Frontend', 'Backend'];
-
 export function Header({ onMenuClick, onNotificationsClick }: HeaderProps) {
-  const { user, notifications, searchQuery, setSearchQuery, teamFilter, setTeamFilter, logout } = useApp();
+  const { user, notifications, searchQuery, setSearchQuery, teamFilter, setTeamFilter, logout, teams } = useApp();
+  const teamOptions = teamFilterOptions(teams);
   const router = useRouter();
   const unreadCount = notifications.filter((notification) => !notification.read).length;
 
