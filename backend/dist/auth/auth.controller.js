@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthController = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
+const common_2 = require("@nestjs/common");
 const client_cognito_identity_provider_1 = require("@aws-sdk/client-cognito-identity-provider");
 const class_validator_1 = require("class-validator");
 const public_decorator_1 = require("./decorators/public.decorator");
@@ -37,6 +38,9 @@ let AuthController = class AuthController {
         this.clientId = this.config.get('COGNITO_CLIENT_ID', '');
     }
     async login(dto) {
+        if (!this.clientId) {
+            throw new common_2.InternalServerErrorException('COGNITO_CLIENT_ID is not configured');
+        }
         const result = await this.cognitoClient.send(new client_cognito_identity_provider_1.InitiateAuthCommand({
             AuthFlow: 'USER_PASSWORD_AUTH',
             ClientId: this.clientId,

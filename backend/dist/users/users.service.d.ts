@@ -10,13 +10,20 @@ export declare class UsersService {
     private readonly userPoolId;
     constructor(dynamo: DynamoDBDocumentClient, config: ConfigService);
     create(dto: CreateUserDto): Promise<{
+        userId: string;
         userID: string;
         email: string;
         name: string;
         role: string;
         teamID: string;
+        teamId: string;
         createdAt: string;
     }>;
+    private createCognitoAndDynamoUser;
+    private syncExistingCognitoUser;
+    private getCognitoSub;
+    private saveUserRecord;
+    private formatCognitoError;
     findAll(): Promise<Record<string, any>[]>;
     findOne(userId: string): Promise<Record<string, any>>;
     update(userId: string, dto: UpdateUserDto): Promise<Record<string, any> | undefined>;

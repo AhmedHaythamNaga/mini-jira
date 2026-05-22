@@ -16,8 +16,8 @@ exports.AuditService = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const lib_dynamodb_1 = require("@aws-sdk/lib-dynamodb");
-const lib_dynamodb_2 = require("@aws-sdk/lib-dynamodb");
 const dynamodb_module_1 = require("../dynamodb/dynamodb.module");
+const dynamodb_helpers_1 = require("../dynamodb/dynamodb-helpers");
 let AuditService = class AuditService {
     constructor(dynamo, config) {
         this.dynamo = dynamo;
@@ -25,14 +25,8 @@ let AuditService = class AuditService {
         this.tableName = this.config.get('DYNAMODB_AUDIT_TABLE', 'mini-jira-audit');
     }
     async findByTask(taskId) {
-        const result = await this.dynamo.send(new lib_dynamodb_2.QueryCommand({
-            TableName: this.tableName,
-            IndexName: 'taskID-index',
-            KeyConditionExpression: 'taskID = :taskID',
-            ExpressionAttributeValues: { ':taskID': taskId },
-        }));
-        const items = result.Items || [];
-        return items.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+        const items = await (0, dynamodb_helpers_1.queryTaskScopedIndex)(this.dynamo, this.tableName, taskId);
+        return (0, dynamodb_helpers_1.sortByIsoField)(items, 'timestamp');
     }
 };
 exports.AuditService = AuditService;

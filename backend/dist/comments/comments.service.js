@@ -19,6 +19,7 @@ const lib_dynamodb_1 = require("@aws-sdk/lib-dynamodb");
 const lib_dynamodb_2 = require("@aws-sdk/lib-dynamodb");
 const uuid_1 = require("uuid");
 const dynamodb_module_1 = require("../dynamodb/dynamodb.module");
+const dynamodb_helpers_1 = require("../dynamodb/dynamodb-helpers");
 let CommentsService = class CommentsService {
     constructor(dynamo, config) {
         this.dynamo = dynamo;
@@ -27,19 +28,15 @@ let CommentsService = class CommentsService {
         this.tasksTable = this.config.get('DYNAMODB_TASKS_TABLE', 'mini-jira-tasks');
     }
     async create(taskId, dto, user) {
-        const taskRes = await this.dynamo.send(new lib_dynamodb_2.GetCommand({ TableName: this.tasksTable, Key: { taskID: taskId } }));
-        if (!taskRes.Item)
-            throw new common_1.NotFoundException(`Task ${taskId} not found`);
-        if (user && user.role === 'employee' && user.teamId) {
-            const taskTeam = taskRes.Item.teamID;
-            if (taskTeam && taskTeam !== user.teamId) {
-                throw new common_1.ForbiddenException('You are not authorized to comment on this task');
-            }
-        }
+        await this.getTaskOrThrow(taskId);
+        const commentId = (0, uuid_1.v4)();
         const comment = {
-            commentID: (0, uuid_1.v4)(),
+            commentID: commentId,
+            commentId,
             taskID: taskId,
+            taskId,
             authorID: user.userId,
+            authorId: user.userId,
             authorName: user.name,
             content: dto.content,
             createdAt: new Date().toISOString(),
@@ -47,24 +44,19 @@ let CommentsService = class CommentsService {
         await this.dynamo.send(new lib_dynamodb_2.PutCommand({ TableName: this.tableName, Item: comment }));
         return comment;
     }
-    async findByTask(taskId, user) {
-        const taskRes = await this.dynamo.send(new lib_dynamodb_2.GetCommand({ TableName: this.tasksTable, Key: { taskID: taskId } }));
-        if (!taskRes.Item)
+    async findByTask(taskId) {
+        await this.getTaskOrThrow(taskId);
+        const items = await (0, dynamodb_helpers_1.queryTaskScopedIndex)(this.dynamo, this.tableName, taskId);
+        return (0, dynamodb_helpers_1.sortByIsoField)(items, 'createdAt');
+    }
+    async getTaskOrThrow(taskId) {
+        const task = await (0, dynamodb_helpers_1.getItemByIdVariants)(this.dynamo, this.tasksTable, taskId, [
+            'taskID',
+            'taskId',
+        ]);
+        if (!task)
             throw new common_1.NotFoundException(`Task ${taskId} not found`);
-        if (user && user.role === 'employee' && user.teamId) {
-            const taskTeam = taskRes.Item.teamID;
-            if (taskTeam && taskTeam !== user.teamId) {
-                throw new common_1.ForbiddenException('You are not authorized to view comments for this task');
-            }
-        }
-        const result = await this.dynamo.send(new lib_dynamodb_2.QueryCommand({
-            TableName: this.tableName,
-            IndexName: 'taskID-index',
-            KeyConditionExpression: 'taskID = :taskID',
-            ExpressionAttributeValues: { ':taskID': taskId },
-        }));
-        const items = result.Items || [];
-        return items.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+        return task;
     }
 };
 exports.CommentsService = CommentsService;

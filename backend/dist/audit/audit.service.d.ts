@@ -5,5 +5,5 @@ export declare class AuditService {
     private readonly config;
     private readonly tableName;
     constructor(dynamo: DynamoDBDocumentClient, config: ConfigService);
-    findByTask(taskId: string): Promise<Record<string, any>[]>;
+    findByTask(taskId: string): Promise<Record<string, unknown>[]>;
 }

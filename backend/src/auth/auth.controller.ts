@@ -1,5 +1,6 @@
 import { Controller, Post, Body } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InternalServerErrorException } from '@nestjs/common';
 import {
   CognitoIdentityProviderClient,
   InitiateAuthCommand,
@@ -30,6 +31,10 @@ export class AuthController {
   @Post('login')
   @Public()
   async login(@Body() dto: LoginDto) {
+    if (!this.clientId) {
+      throw new InternalServerErrorException('COGNITO_CLIENT_ID is not configured');
+    }
+
     const result = await this.cognitoClient.send(
       new InitiateAuthCommand({
         AuthFlow: 'USER_PASSWORD_AUTH',

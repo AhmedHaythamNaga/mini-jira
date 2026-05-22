@@ -1,8 +1,8 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
-import { QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { DYNAMO_CLIENT } from '../dynamodb/dynamodb.module';
+import { queryTaskScopedIndex, sortByIsoField } from '../dynamodb/dynamodb-helpers';
 
 @Injectable()
 export class AuditService {
@@ -16,17 +16,7 @@ export class AuditService {
   }
 
   async findByTask(taskId: string) {
-    const result = await this.dynamo.send(
-      new QueryCommand({
-        TableName: this.tableName,
-        IndexName: 'taskID-index',
-        KeyConditionExpression: 'taskID = :taskID',
-        ExpressionAttributeValues: { ':taskID': taskId },
-      }),
-    );
-    const items = result.Items || [];
-    return items.sort((a, b) =>
-      (a.timestamp as string).localeCompare(b.timestamp as string),
-    );
+    const items = await queryTaskScopedIndex(this.dynamo, this.tableName, taskId);
+    return sortByIsoField(items, 'timestamp');
   }
 }

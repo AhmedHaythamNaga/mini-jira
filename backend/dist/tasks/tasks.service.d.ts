@@ -41,10 +41,12 @@ export declare class TasksService {
     remove(taskId: string): Promise<{
         deleted: boolean;
     }>;
-    getUploadUrl(taskId: string): Promise<{
+    getUploadUrl(taskId: string, contentType?: string): Promise<{
         uploadUrl: string;
         imageKey: string;
+        contentType: string | null;
     }>;
+    uploadImageData(taskId: string, imageBase64: string, contentType?: string): Promise<Record<string, any> | undefined>;
     attachImage(taskId: string, imageKey: string): Promise<Record<string, any> | undefined>;
     getImageUrl(taskId: string, variant?: 'original' | 'resized'): Promise<{
         imageUrl: null;

@@ -6,11 +6,14 @@ export declare class CommentsController {
     constructor(commentsService: CommentsService);
     create(taskId: string, dto: CreateCommentDto, user: AuthUser): Promise<{
         commentID: string;
+        commentId: string;
         taskID: string;
+        taskId: string;
         authorID: string;
+        authorId: string;
         authorName: string;
         content: string;
         createdAt: string;
     }>;
-    findByTask(taskId: string, user: AuthUser): Promise<Record<string, any>[]>;
+    findByTask(taskId: string): Promise<Record<string, unknown>[]>;
 }

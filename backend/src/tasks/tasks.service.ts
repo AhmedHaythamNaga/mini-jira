@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import {
@@ -15,6 +15,7 @@ import { CloudWatchClient, PutMetricDataCommand } from '@aws-sdk/client-cloudwat
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 import { v4 as uuidv4 } from 'uuid';
 import { DYNAMO_CLIENT } from '../dynamodb/dynamodb.module';
+import { buildPrimaryKey, getItemByIdVariants } from '../dynamodb/dynamodb-helpers';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { AuthUser } from '../auth/decorators/current-user.decorator';
@@ -103,20 +104,22 @@ export class TasksService {
   }
 
   async findOne(taskId: string, user?: AuthUser) {
-    const result = await this.dynamo.send(
-      new GetCommand({ TableName: this.tableName, Key: { taskID: taskId } }),
-    );
-    if (!result.Item) throw new NotFoundException(`Task ${taskId} not found`);
+    const item = await getItemByIdVariants(this.dynamo, this.tableName, taskId, [
+      'taskID',
+      'taskId',
+    ]);
+    if (!item) throw new NotFoundException(`Task ${taskId} not found`);
 
     // Enforce team isolation for employees
     if (user && user.role === 'employee' && user.teamId) {
-      const itemTeam = result.Item.teamID as string | undefined;
+      const itemTeam =
+        (item.teamID as string | undefined) ?? (item.teamId as string | undefined);
       if (itemTeam && itemTeam !== user.teamId) {
         throw new ForbiddenException('You are not authorized to access this task');
       }
     }
 
-    return result.Item;
+    return item;
   }
 
   async findByProject(projectId: string, user: AuthUser) {
@@ -190,7 +193,7 @@ export class TasksService {
     const result = await this.dynamo.send(
       new UpdateCommand({
         TableName: this.tableName,
-        Key: { taskID: taskId },
+        Key: buildPrimaryKey(taskId, ['taskID', 'taskId'], existing),
         UpdateExpression: `SET ${expressionParts.join(', ')}`,
         ExpressionAttributeNames: names,
         ExpressionAttributeValues: values,
@@ -229,7 +232,7 @@ export class TasksService {
     const result = await this.dynamo.send(
       new UpdateCommand({
         TableName: this.tableName,
-        Key: { taskID: taskId },
+        Key: buildPrimaryKey(taskId, ['taskID', 'taskId'], existing),
         UpdateExpression: 'SET assigneeID = :aid, updatedAt = :ua',
         ExpressionAttributeValues: {
           ':aid': assigneeId,
@@ -247,36 +250,73 @@ export class TasksService {
   }
 
   async remove(taskId: string) {
-    await this.findOne(taskId);
+    const existing = await this.findOne(taskId);
     await this.dynamo.send(
-      new DeleteCommand({ TableName: this.tableName, Key: { taskID: taskId } }),
+      new DeleteCommand({
+        TableName: this.tableName,
+        Key: buildPrimaryKey(taskId, ['taskID', 'taskId'], existing),
+      }),
     );
     return { deleted: true };
   }
 
   // ---- S3 Presigned URLs ----
 
-  async getUploadUrl(taskId: string) {
-    await this.findOne(taskId); // ensure task exists
+  async getUploadUrl(taskId: string, contentType?: string) {
+    await this.findOne(taskId);
     const key = `tasks/${taskId}/${uuidv4()}`;
 
     const command = new PutObjectCommand({
       Bucket: this.originalsBucket,
       Key: key,
-      ContentType: 'image/*',
+      ...(contentType ? { ContentType: contentType } : {}),
     });
 
     const url = await getSignedUrl(this.s3, command, { expiresIn: 300 });
-    return { uploadUrl: url, imageKey: key };
+    return { uploadUrl: url, imageKey: key, contentType: contentType ?? null };
+  }
+
+  /** Upload via API (same-origin) — avoids S3 CORS issues from the browser. */
+  async uploadImageData(taskId: string, imageBase64: string, contentType?: string) {
+    await this.findOne(taskId);
+    const base64Data = imageBase64.replace(/^data:image\/[a-z0-9+.-]+;base64,/i, '').trim();
+    if (!base64Data) {
+      throw new BadRequestException('Invalid image data');
+    }
+
+    let buffer: Buffer;
+    try {
+      buffer = Buffer.from(base64Data, 'base64');
+    } catch {
+      throw new BadRequestException('Invalid image data');
+    }
+    if (!buffer.length) {
+      throw new BadRequestException('Image file is empty');
+    }
+
+    const mime = contentType?.trim() || 'image/jpeg';
+    const ext = mime.split('/')[1]?.split('+')[0] || 'jpg';
+    const key = `tasks/${taskId}/${uuidv4()}.${ext}`;
+
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.originalsBucket,
+        Key: key,
+        Body: buffer,
+        ContentType: mime,
+      }),
+    );
+
+    return this.attachImage(taskId, key);
   }
 
   async attachImage(taskId: string, imageKey: string) {
-    await this.findOne(taskId);
+    const existing = await this.findOne(taskId);
 
     const result = await this.dynamo.send(
       new UpdateCommand({
         TableName: this.tableName,
-        Key: { taskID: taskId },
+        Key: buildPrimaryKey(taskId, ['taskID', 'taskId'], existing),
         UpdateExpression: 'SET imageKey = :ik, resizedImageKey = :rk, updatedAt = :ua',
         ExpressionAttributeValues: {
           ':ik': imageKey,

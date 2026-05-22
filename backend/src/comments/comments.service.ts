@@ -1,9 +1,14 @@
-import { Injectable, Inject, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
-import { PutCommand, QueryCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { DYNAMO_CLIENT } from '../dynamodb/dynamodb.module';
+import {
+  getItemByIdVariants,
+  queryTaskScopedIndex,
+  sortByIsoField,
+} from '../dynamodb/dynamodb-helpers';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { AuthUser } from '../auth/decorators/current-user.decorator';
 
@@ -21,21 +26,16 @@ export class CommentsService {
   }
 
   async create(taskId: string, dto: CreateCommentDto, user: AuthUser) {
-    // Ensure task exists and enforce team isolation
-    const taskRes = await this.dynamo.send(
-      new GetCommand({ TableName: this.tasksTable, Key: { taskID: taskId } }),
-    );
-    if (!taskRes.Item) throw new NotFoundException(`Task ${taskId} not found`);
-    if (user && user.role === 'employee' && user.teamId) {
-      const taskTeam = taskRes.Item.teamID as string | undefined;
-      if (taskTeam && taskTeam !== user.teamId) {
-        throw new ForbiddenException('You are not authorized to comment on this task');
-      }
-    }
+    await this.getTaskOrThrow(taskId);
+
+    const commentId = uuidv4();
     const comment = {
-      commentID: uuidv4(),
+      commentID: commentId,
+      commentId,
       taskID: taskId,
+      taskId,
       authorID: user.userId,
+      authorId: user.userId,
       authorName: user.name,
       content: dto.content,
       createdAt: new Date().toISOString(),
@@ -47,31 +47,19 @@ export class CommentsService {
     return comment;
   }
 
-  async findByTask(taskId: string, user?: AuthUser) {
-    // Ensure task exists and enforce team isolation for employees
-    const taskRes = await this.dynamo.send(
-      new GetCommand({ TableName: this.tasksTable, Key: { taskID: taskId } }),
-    );
-    if (!taskRes.Item) throw new NotFoundException(`Task ${taskId} not found`);
-    if (user && user.role === 'employee' && user.teamId) {
-      const taskTeam = taskRes.Item.teamID as string | undefined;
-      if (taskTeam && taskTeam !== user.teamId) {
-        throw new ForbiddenException('You are not authorized to view comments for this task');
-      }
-    }
-
-    const result = await this.dynamo.send(
-      new QueryCommand({
-        TableName: this.tableName,
-        IndexName: 'taskID-index',
-        KeyConditionExpression: 'taskID = :taskID',
-        ExpressionAttributeValues: { ':taskID': taskId },
-      }),
-    );
-    // Sort by createdAt ascending
-    const items = result.Items || [];
-    return items.sort((a, b) =>
-      (a.createdAt as string).localeCompare(b.createdAt as string),
-    );
+  async findByTask(taskId: string) {
+    await this.getTaskOrThrow(taskId);
+    const items = await queryTaskScopedIndex(this.dynamo, this.tableName, taskId);
+    return sortByIsoField(items, 'createdAt');
   }
+
+  private async getTaskOrThrow(taskId: string) {
+    const task = await getItemByIdVariants(this.dynamo, this.tasksTable, taskId, [
+      'taskID',
+      'taskId',
+    ]);
+    if (!task) throw new NotFoundException(`Task ${taskId} not found`);
+    return task;
+  }
+
 }

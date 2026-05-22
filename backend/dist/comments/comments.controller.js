@@ -25,8 +25,8 @@ let CommentsController = class CommentsController {
     create(taskId, dto, user) {
         return this.commentsService.create(taskId, dto, user);
     }
-    findByTask(taskId, user) {
-        return this.commentsService.findByTask(taskId, user);
+    findByTask(taskId) {
+        return this.commentsService.findByTask(taskId);
     }
 };
 exports.CommentsController = CommentsController;
@@ -42,9 +42,8 @@ __decorate([
 __decorate([
     (0, common_1.Get)(),
     __param(0, (0, common_1.Param)('taskId')),
-    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], CommentsController.prototype, "findByTask", null);
 exports.CommentsController = CommentsController = __decorate([

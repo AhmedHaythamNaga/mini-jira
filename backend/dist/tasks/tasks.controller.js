@@ -19,6 +19,7 @@ const create_task_dto_1 = require("./dto/create-task.dto");
 const update_task_dto_1 = require("./dto/update-task.dto");
 const assign_task_dto_1 = require("./dto/assign-task.dto");
 const attach_image_dto_1 = require("./dto/attach-image.dto");
+const upload_image_dto_1 = require("./dto/upload-image.dto");
 const auth_guard_1 = require("../auth/auth.guard");
 const roles_guard_1 = require("../auth/roles.guard");
 const roles_decorator_1 = require("../auth/decorators/roles.decorator");
@@ -52,8 +53,11 @@ let TasksController = class TasksController {
     remove(id) {
         return this.tasksService.remove(id);
     }
-    getUploadUrl(id) {
-        return this.tasksService.getUploadUrl(id);
+    getUploadUrl(id, contentType) {
+        return this.tasksService.getUploadUrl(id, contentType);
+    }
+    uploadImage(id, dto) {
+        return this.tasksService.uploadImageData(id, dto.imageBase64, dto.contentType);
     }
     attachImage(id, dto) {
         return this.tasksService.attachImage(id, dto.imageKey);
@@ -132,10 +136,19 @@ __decorate([
 __decorate([
     (0, common_1.Get)(':id/upload-url'),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Query)('contentType')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", void 0)
 ], TasksController.prototype, "getUploadUrl", null);
+__decorate([
+    (0, common_1.Put)(':id/image-upload'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, upload_image_dto_1.UploadImageDto]),
+    __metadata("design:returntype", void 0)
+], TasksController.prototype, "uploadImage", null);
 __decorate([
     (0, common_1.Put)(':id/image'),
     __param(0, (0, common_1.Param)('id')),

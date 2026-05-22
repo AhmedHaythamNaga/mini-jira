@@ -5,11 +5,13 @@ export declare class UsersController {
     private readonly usersService;
     constructor(usersService: UsersService);
     create(dto: CreateUserDto): Promise<{
+        userId: string;
         userID: string;
         email: string;
         name: string;
         role: string;
         teamID: string;
+        teamId: string;
         createdAt: string;
     }>;
     findAll(): Promise<Record<string, any>[]>;

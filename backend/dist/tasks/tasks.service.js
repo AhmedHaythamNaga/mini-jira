@@ -23,6 +23,7 @@ const client_cloudwatch_1 = require("@aws-sdk/client-cloudwatch");
 const client_sns_1 = require("@aws-sdk/client-sns");
 const uuid_1 = require("uuid");
 const dynamodb_module_1 = require("../dynamodb/dynamodb.module");
+const dynamodb_helpers_1 = require("../dynamodb/dynamodb-helpers");
 let TasksService = class TasksService {
     constructor(dynamo, config) {
         this.dynamo = dynamo;
@@ -77,16 +78,19 @@ let TasksService = class TasksService {
         return result.Items || [];
     }
     async findOne(taskId, user) {
-        const result = await this.dynamo.send(new lib_dynamodb_2.GetCommand({ TableName: this.tableName, Key: { taskID: taskId } }));
-        if (!result.Item)
+        const item = await (0, dynamodb_helpers_1.getItemByIdVariants)(this.dynamo, this.tableName, taskId, [
+            'taskID',
+            'taskId',
+        ]);
+        if (!item)
             throw new common_1.NotFoundException(`Task ${taskId} not found`);
         if (user && user.role === 'employee' && user.teamId) {
-            const itemTeam = result.Item.teamID;
+            const itemTeam = item.teamID ?? item.teamId;
             if (itemTeam && itemTeam !== user.teamId) {
                 throw new common_1.ForbiddenException('You are not authorized to access this task');
             }
         }
-        return result.Item;
+        return item;
     }
     async findByProject(projectId, user) {
         const result = await this.dynamo.send(new lib_dynamodb_2.ScanCommand({
@@ -142,7 +146,7 @@ let TasksService = class TasksService {
         values[':ua'] = new Date().toISOString();
         const result = await this.dynamo.send(new lib_dynamodb_2.UpdateCommand({
             TableName: this.tableName,
-            Key: { taskID: taskId },
+            Key: (0, dynamodb_helpers_1.buildPrimaryKey)(taskId, ['taskID', 'taskId'], existing),
             UpdateExpression: `SET ${expressionParts.join(', ')}`,
             ExpressionAttributeNames: names,
             ExpressionAttributeValues: values,
@@ -169,7 +173,7 @@ let TasksService = class TasksService {
         const oldStatus = existing.status;
         const result = await this.dynamo.send(new lib_dynamodb_2.UpdateCommand({
             TableName: this.tableName,
-            Key: { taskID: taskId },
+            Key: (0, dynamodb_helpers_1.buildPrimaryKey)(taskId, ['taskID', 'taskId'], existing),
             UpdateExpression: 'SET assigneeID = :aid, updatedAt = :ua',
             ExpressionAttributeValues: {
                 ':aid': assigneeId,
@@ -183,26 +187,56 @@ let TasksService = class TasksService {
         return updated;
     }
     async remove(taskId) {
-        await this.findOne(taskId);
-        await this.dynamo.send(new lib_dynamodb_2.DeleteCommand({ TableName: this.tableName, Key: { taskID: taskId } }));
+        const existing = await this.findOne(taskId);
+        await this.dynamo.send(new lib_dynamodb_2.DeleteCommand({
+            TableName: this.tableName,
+            Key: (0, dynamodb_helpers_1.buildPrimaryKey)(taskId, ['taskID', 'taskId'], existing),
+        }));
         return { deleted: true };
     }
-    async getUploadUrl(taskId) {
+    async getUploadUrl(taskId, contentType) {
         await this.findOne(taskId);
         const key = `tasks/${taskId}/${(0, uuid_1.v4)()}`;
         const command = new client_s3_1.PutObjectCommand({
             Bucket: this.originalsBucket,
             Key: key,
-            ContentType: 'image/*',
+            ...(contentType ? { ContentType: contentType } : {}),
         });
         const url = await (0, s3_request_presigner_1.getSignedUrl)(this.s3, command, { expiresIn: 300 });
-        return { uploadUrl: url, imageKey: key };
+        return { uploadUrl: url, imageKey: key, contentType: contentType ?? null };
+    }
+    async uploadImageData(taskId, imageBase64, contentType) {
+        await this.findOne(taskId);
+        const base64Data = imageBase64.replace(/^data:image\/[a-z0-9+.-]+;base64,/i, '').trim();
+        if (!base64Data) {
+            throw new common_1.BadRequestException('Invalid image data');
+        }
+        let buffer;
+        try {
+            buffer = Buffer.from(base64Data, 'base64');
+        }
+        catch {
+            throw new common_1.BadRequestException('Invalid image data');
+        }
+        if (!buffer.length) {
+            throw new common_1.BadRequestException('Image file is empty');
+        }
+        const mime = contentType?.trim() || 'image/jpeg';
+        const ext = mime.split('/')[1]?.split('+')[0] || 'jpg';
+        const key = `tasks/${taskId}/${(0, uuid_1.v4)()}.${ext}`;
+        await this.s3.send(new client_s3_1.PutObjectCommand({
+            Bucket: this.originalsBucket,
+            Key: key,
+            Body: buffer,
+            ContentType: mime,
+        }));
+        return this.attachImage(taskId, key);
     }
     async attachImage(taskId, imageKey) {
-        await this.findOne(taskId);
+        const existing = await this.findOne(taskId);
         const result = await this.dynamo.send(new lib_dynamodb_2.UpdateCommand({
             TableName: this.tableName,
-            Key: { taskID: taskId },
+            Key: (0, dynamodb_helpers_1.buildPrimaryKey)(taskId, ['taskID', 'taskId'], existing),
             UpdateExpression: 'SET imageKey = :ik, resizedImageKey = :rk, updatedAt = :ua',
             ExpressionAttributeValues: {
                 ':ik': imageKey,

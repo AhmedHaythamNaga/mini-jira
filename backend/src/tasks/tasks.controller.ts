@@ -15,6 +15,7 @@ import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { AssignTaskDto } from './dto/assign-task.dto';
 import { AttachImageDto } from './dto/attach-image.dto';
+import { UploadImageDto } from './dto/upload-image.dto';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -84,8 +85,13 @@ export class TasksController {
   // ---- Image endpoints ----
 
   @Get(':id/upload-url')
-  getUploadUrl(@Param('id') id: string) {
-    return this.tasksService.getUploadUrl(id);
+  getUploadUrl(@Param('id') id: string, @Query('contentType') contentType?: string) {
+    return this.tasksService.getUploadUrl(id, contentType);
+  }
+
+  @Put(':id/image-upload')
+  uploadImage(@Param('id') id: string, @Body() dto: UploadImageDto) {
+    return this.tasksService.uploadImageData(id, dto.imageBase64, dto.contentType);
   }
 
   @Put(':id/image')
