@@ -20,8 +20,8 @@ export class CommentsService {
 
   async create(taskId: string, dto: CreateCommentDto, user: AuthUser) {
     const comment = {
-      commentId: uuidv4(),
-      taskId,
+      commentID: uuidv4(),
+      taskID: taskId,
       authorId: user.userId,
       authorName: user.name,
       content: dto.content,
@@ -38,8 +38,8 @@ export class CommentsService {
     const result = await this.dynamo.send(
       new QueryCommand({
         TableName: this.tableName,
-        IndexName: 'taskId-index',
-        KeyConditionExpression: 'taskId = :taskId',
+        IndexName: 'taskIDIndex',
+        KeyConditionExpression: 'taskID = :taskId',
         ExpressionAttributeValues: { ':taskId': taskId },
       }),
     );

@@ -66,7 +66,7 @@ export class UsersService {
 
     // 2. Save user in DynamoDB
     const user = {
-      userId,
+      userID: userId,
       email: dto.email,
       name: dto.name,
       role: dto.role,
@@ -90,7 +90,7 @@ export class UsersService {
 
   async findOne(userId: string) {
     const result = await this.dynamo.send(
-      new GetCommand({ TableName: this.tableName, Key: { userId } }),
+      new GetCommand({ TableName: this.tableName, Key: { userID: userId } }),
     );
     if (!result.Item) throw new NotFoundException(`User ${userId} not found`);
     return result.Item;
@@ -128,7 +128,7 @@ export class UsersService {
     const result = await this.dynamo.send(
       new UpdateCommand({
         TableName: this.tableName,
-        Key: { userId },
+        Key: { userID: userId },
         UpdateExpression: `SET ${expressionParts.join(', ')}`,
         ExpressionAttributeNames: names,
         ExpressionAttributeValues: values,
@@ -161,7 +161,7 @@ export class UsersService {
   async remove(userId: string) {
     await this.findOne(userId);
     await this.dynamo.send(
-      new DeleteCommand({ TableName: this.tableName, Key: { userId } }),
+      new DeleteCommand({ TableName: this.tableName, Key: { userID: userId } }),
     );
     return { deleted: true };
   }

@@ -19,8 +19,8 @@ export class AuditService {
     const result = await this.dynamo.send(
       new QueryCommand({
         TableName: this.tableName,
-        IndexName: 'taskId-index',
-        KeyConditionExpression: 'taskId = :taskId',
+        IndexName: 'taskIDIndex',
+        KeyConditionExpression: 'taskID = :taskId',
         ExpressionAttributeValues: { ':taskId': taskId },
       }),
     );

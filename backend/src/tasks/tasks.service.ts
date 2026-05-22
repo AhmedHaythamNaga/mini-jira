@@ -50,7 +50,7 @@ export class TasksService {
   async create(dto: CreateTaskDto, user: AuthUser) {
     const now = new Date().toISOString();
     const task = {
-      taskId: uuidv4(),
+      taskID: uuidv4(),
       title: dto.title,
       description: dto.description || '',
       status: 'To Do',
@@ -87,8 +87,8 @@ export class TasksService {
       const result = await this.dynamo.send(
         new QueryCommand({
           TableName: this.tableName,
-          IndexName: 'teamId-index',
-          KeyConditionExpression: 'teamId = :teamId',
+          IndexName: 'teamIDIndex',
+          KeyConditionExpression: 'teamID = :teamId',
           ExpressionAttributeValues: { ':teamId': user.teamId },
         }),
       );
@@ -104,7 +104,7 @@ export class TasksService {
 
   async findOne(taskId: string) {
     const result = await this.dynamo.send(
-      new GetCommand({ TableName: this.tableName, Key: { taskId } }),
+      new GetCommand({ TableName: this.tableName, Key: { taskID: taskId } }),
     );
     if (!result.Item) throw new NotFoundException(`Task ${taskId} not found`);
     return result.Item;
@@ -132,8 +132,8 @@ export class TasksService {
     const result = await this.dynamo.send(
       new QueryCommand({
         TableName: this.tableName,
-        IndexName: 'assigneeId-index',
-        KeyConditionExpression: 'assigneeId = :aid',
+        IndexName: 'assigneeIDIndex',
+        KeyConditionExpression: 'assigneeID = :aid',
         ExpressionAttributeValues: { ':aid': assigneeId },
       }),
     );
@@ -181,7 +181,7 @@ export class TasksService {
     const result = await this.dynamo.send(
       new UpdateCommand({
         TableName: this.tableName,
-        Key: { taskId },
+        Key: { taskID: taskId },
         UpdateExpression: `SET ${expressionParts.join(', ')}`,
         ExpressionAttributeNames: names,
         ExpressionAttributeValues: values,
@@ -220,7 +220,7 @@ export class TasksService {
     const result = await this.dynamo.send(
       new UpdateCommand({
         TableName: this.tableName,
-        Key: { taskId },
+        Key: { taskID: taskId },
         UpdateExpression: 'SET assigneeId = :aid, updatedAt = :ua',
         ExpressionAttributeValues: {
           ':aid': assigneeId,
@@ -240,7 +240,7 @@ export class TasksService {
   async remove(taskId: string) {
     await this.findOne(taskId);
     await this.dynamo.send(
-      new DeleteCommand({ TableName: this.tableName, Key: { taskId } }),
+      new DeleteCommand({ TableName: this.tableName, Key: { taskID: taskId } }),
     );
     return { deleted: true };
   }
@@ -267,7 +267,7 @@ export class TasksService {
     const result = await this.dynamo.send(
       new UpdateCommand({
         TableName: this.tableName,
-        Key: { taskId },
+        Key: { taskID: taskId },
         UpdateExpression: 'SET imageKey = :ik, resizedImageKey = :rk, updatedAt = :ua',
         ExpressionAttributeValues: {
           ':ik': imageKey,
@@ -306,7 +306,7 @@ export class TasksService {
       const assignee = await this.dynamo.send(
         new GetCommand({
           TableName: this.usersTable,
-          Key: { userId: task.assigneeId },
+          Key: { userID: task.assigneeId },
         }),
       );
       if (assignee.Item) {
@@ -347,8 +347,8 @@ export class TasksService {
       new PutCommand({
         TableName: this.auditTable,
         Item: {
-          logId: uuidv4(),
-          taskId,
+          LogID: uuidv4(),
+          taskID: taskId,
           changedBy,
           oldStatus,
           newStatus,

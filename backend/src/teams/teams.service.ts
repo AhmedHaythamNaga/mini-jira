@@ -26,7 +26,7 @@ export class TeamsService {
 
   async create(dto: CreateTeamDto) {
     const team = {
-      teamId: uuidv4(),
+      teamID: uuidv4(),
       name: dto.name,
       createdAt: new Date().toISOString(),
     };
@@ -45,7 +45,7 @@ export class TeamsService {
 
   async findOne(teamId: string) {
     const result = await this.dynamo.send(
-      new GetCommand({ TableName: this.tableName, Key: { teamId } }),
+      new GetCommand({ TableName: this.tableName, Key: { teamID: teamId } }),
     );
     if (!result.Item) throw new NotFoundException(`Team ${teamId} not found`);
     return result.Item;
@@ -57,7 +57,7 @@ export class TeamsService {
     const result = await this.dynamo.send(
       new UpdateCommand({
         TableName: this.tableName,
-        Key: { teamId },
+        Key: { teamID: teamId },
         UpdateExpression: 'SET #n = :n, #u = :u',
         ExpressionAttributeNames: { '#n': 'name', '#u': 'updatedAt' },
         ExpressionAttributeValues: {
@@ -73,7 +73,7 @@ export class TeamsService {
   async remove(teamId: string) {
     await this.findOne(teamId);
     await this.dynamo.send(
-      new DeleteCommand({ TableName: this.tableName, Key: { teamId } }),
+      new DeleteCommand({ TableName: this.tableName, Key: { teamID: teamId } }),
     );
     return { deleted: true };
   }
