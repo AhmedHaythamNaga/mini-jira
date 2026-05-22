@@ -74,6 +74,7 @@ interface AppContextValue extends AppState {
   createProject: (input: CreateProjectInput) => void;
   createUser: (input: CreateUserInput) => void;
   createTeam: (name: string) => void;
+  refreshTeams: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -347,12 +348,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       usersRaw = [...usersRaw, ...extraUsers.filter(Boolean) as BackendUser[]];
 
       const normalizedUsers = usersRaw.map((user) => normalizeUser(user, teamsRaw));
-      const normalizedTeams = teamsRaw.map((team) => ({
-        id: team.teamID,
-        name: team.name,
-        memberCount: usersRaw.filter((user) => user.teamID === team.teamID || user.teamID === team.name).length,
-        projectCount: projectsRaw.filter((project) => normalizedUsers.find((user) => user.id === project.createdBy)?.teamId === team.teamID).length,
-      }));
+      const normalizedTeams = teamsRaw.map((team) => {
+        const id = team.teamID ?? (team as { teamId?: string }).teamId ?? '';
+        return {
+          id,
+          name: team.name,
+          memberCount: usersRaw.filter(
+            (user) => user.teamID === id || user.teamID === team.name,
+          ).length,
+          projectCount: projectsRaw.filter(
+            (project) => normalizedUsers.find((user) => user.id === project.createdBy)?.teamId === id,
+          ).length,
+        };
+      });
 
       const normalizedTasks = tasksRaw.map((task) => normalizeTask(task, normalizedUsers, teamsRaw));
       const normalizedProjects = projectsRaw.map((project) => normalizeProject(project, normalizedUsers));
@@ -486,9 +494,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toast.success('Task deleted successfully');
   };
 
+  const refreshTeams = async () => {
+    if (!session) return;
+    if (session.user.role !== 'manager' && session.user.role !== 'admin') return;
+
+    try {
+      const teamsRaw = await apiGetTeams(session.tokens.idToken);
+      setState((current) => ({
+        ...current,
+        teams: teamsRaw.map((team) => {
+          const id = team.teamID ?? (team as { teamId?: string }).teamId ?? '';
+          return {
+            id,
+            name: team.name,
+            memberCount: current.users.filter(
+              (user) => user.teamId === id || user.teamId === team.name,
+            ).length,
+            projectCount: current.projects.filter(
+              (project) =>
+                current.users.find((user) => user.id === project.createdById)?.teamId === id,
+            ).length,
+          };
+        }),
+      }));
+    } catch (error) {
+      console.error(error);
+      toast.error('Could not refresh teams list');
+    }
+  };
+
   const createTask = (input: CreateTaskInput, imageFile?: File) => {
     if (!session) return;
-    const teamId = resolveTeamId(input.team, state.teams) || state.user?.teamId || '';
+    const teamId = input.teamId || state.user?.teamId || '';
     const body = {
       title: input.title,
       description: input.description,
@@ -592,6 +629,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       createProject,
       createUser,
       createTeam,
+      refreshTeams,
     }),
     [state],
   );

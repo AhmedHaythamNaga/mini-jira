@@ -84,7 +84,7 @@ export interface CreateTaskInput {
   description: string;
   priority: Priority;
   assigneeId: string;
-  team: TeamName;
+  teamId: string;
   projectId: string;
   deadline: string;
 }
