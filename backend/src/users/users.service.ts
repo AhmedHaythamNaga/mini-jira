@@ -19,6 +19,7 @@ import {
   AdminGetUserCommand,
   AdminSetUserPasswordCommand,
   AdminUpdateUserAttributesCommand,
+  AdminConfirmSignUpCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { DYNAMO_CLIENT } from '../dynamodb/dynamodb.module';
 import { buildPrimaryKey, getItemByIdVariants } from '../dynamodb/dynamodb-helpers';
@@ -66,14 +67,42 @@ export class UsersService {
     }
   }
 
+  private normalizeEmail(email: string) {
+    return email.trim().toLowerCase();
+  }
+
+  private async ensureLoginReady(email: string, password: string) {
+    await this.cognitoClient.send(
+      new AdminSetUserPasswordCommand({
+        UserPoolId: this.userPoolId,
+        Username: email,
+        Password: password,
+        Permanent: true,
+      }),
+    );
+
+    await this.cognitoClient
+      .send(
+        new AdminConfirmSignUpCommand({
+          UserPoolId: this.userPoolId,
+          Username: email,
+        }),
+      )
+      .catch(() => {
+        // Already confirmed.
+      });
+  }
+
   private async createCognitoAndDynamoUser(dto: CreateUserDto, password: string) {
+    const email = this.normalizeEmail(dto.email);
+
     await this.cognitoClient.send(
       new AdminCreateUserCommand({
         UserPoolId: this.userPoolId,
-        Username: dto.email,
+        Username: email,
         TemporaryPassword: password,
         UserAttributes: [
-          { Name: 'email', Value: dto.email },
+          { Name: 'email', Value: email },
           { Name: 'email_verified', Value: 'true' },
           { Name: 'name', Value: dto.name },
           { Name: 'custom:role', Value: dto.role },
@@ -83,33 +112,20 @@ export class UsersService {
       }),
     );
 
-    await this.cognitoClient.send(
-      new AdminSetUserPasswordCommand({
-        UserPoolId: this.userPoolId,
-        Username: dto.email,
-        Password: password,
-        Permanent: true,
-      }),
-    );
+    await this.ensureLoginReady(email, password);
 
-    const userID = await this.getCognitoSub(dto.email);
-    return this.saveUserRecord(userID, dto);
+    const userID = await this.getCognitoSub(email);
+    return this.saveUserRecord(userID, { ...dto, email });
   }
 
   private async syncExistingCognitoUser(dto: CreateUserDto, password: string) {
-    await this.cognitoClient.send(
-      new AdminSetUserPasswordCommand({
-        UserPoolId: this.userPoolId,
-        Username: dto.email,
-        Password: password,
-        Permanent: true,
-      }),
-    );
+    const email = this.normalizeEmail(dto.email);
+    await this.ensureLoginReady(email, password);
 
     await this.cognitoClient.send(
       new AdminUpdateUserAttributesCommand({
         UserPoolId: this.userPoolId,
-        Username: dto.email,
+        Username: email,
         UserAttributes: [
           { Name: 'name', Value: dto.name },
           { Name: 'custom:role', Value: dto.role },
@@ -118,8 +134,8 @@ export class UsersService {
       }),
     );
 
-    const userID = await this.getCognitoSub(dto.email);
-    return this.saveUserRecord(userID, dto);
+    const userID = await this.getCognitoSub(email);
+    return this.saveUserRecord(userID, { ...dto, email });
   }
 
   private async getCognitoSub(email: string) {
@@ -137,10 +153,11 @@ export class UsersService {
   }
 
   private async saveUserRecord(userID: string, dto: CreateUserDto) {
+    const email = this.normalizeEmail(dto.email);
     const user = {
       userId: userID,
       userID,
-      email: dto.email,
+      email,
       name: dto.name,
       role: dto.role,
       teamID: dto.teamID || '',

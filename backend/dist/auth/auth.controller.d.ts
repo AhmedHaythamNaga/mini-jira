@@ -7,12 +7,17 @@ export declare class AuthController {
     private readonly config;
     private readonly cognitoClient;
     private readonly clientId;
+    private readonly userPoolId;
     constructor(config: ConfigService);
     login(dto: LoginDto): Promise<{
-        idToken: string | undefined;
+        idToken: string;
         accessToken: string | undefined;
         refreshToken: string | undefined;
         expiresIn: number | undefined;
     }>;
+    private issueTokens;
+    private initiateAuth;
+    private clearPasswordChallenge;
+    private mapAuthError;
 }
 export {};

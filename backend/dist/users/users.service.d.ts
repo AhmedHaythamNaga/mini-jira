@@ -19,6 +19,8 @@ export declare class UsersService {
         teamId: string;
         createdAt: string;
     }>;
+    private normalizeEmail;
+    private ensureLoginReady;
     private createCognitoAndDynamoUser;
     private syncExistingCognitoUser;
     private getCognitoSub;
