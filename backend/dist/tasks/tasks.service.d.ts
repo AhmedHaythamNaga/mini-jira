@@ -1,21 +1,21 @@
 import { ConfigService } from '@nestjs/config';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { AuthUser } from '../auth/decorators/current-user.decorator';
 export declare class TasksService {
     private readonly dynamo;
     private readonly config;
+    private readonly notifications;
     private readonly tableName;
     private readonly usersTable;
     private readonly auditTable;
     private readonly originalsBucket;
     private readonly resizedBucket;
-    private readonly snsTopicArn;
     private readonly s3;
     private readonly cloudwatch;
-    private readonly sns;
-    constructor(dynamo: DynamoDBDocumentClient, config: ConfigService);
+    constructor(dynamo: DynamoDBDocumentClient, config: ConfigService, notifications: NotificationsService);
     create(dto: CreateTaskDto, user: AuthUser): Promise<{
         taskID: string;
         title: string;

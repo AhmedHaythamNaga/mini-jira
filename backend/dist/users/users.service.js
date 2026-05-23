@@ -158,6 +158,28 @@ let UsersService = class UsersService {
             throw new common_1.NotFoundException(`User ${userId} not found`);
         return item;
     }
+    async findByEmail(email) {
+        const normalized = this.normalizeEmail(email);
+        const result = await this.dynamo.send(new lib_dynamodb_2.ScanCommand({
+            TableName: this.tableName,
+            FilterExpression: 'email = :email',
+            ExpressionAttributeValues: { ':email': normalized },
+        }));
+        const item = result.Items?.[0];
+        if (!item)
+            throw new common_1.NotFoundException(`User with email ${email} not found`);
+        return item;
+    }
+    async resolveAuthUser(auth) {
+        try {
+            return await this.findOne(auth.userId);
+        }
+        catch {
+            if (!auth.email)
+                throw new common_1.NotFoundException('User profile not found');
+            return this.findByEmail(auth.email);
+        }
+    }
     async update(userId, dto) {
         const existing = await this.findOne(userId);
         const expressionParts = [];

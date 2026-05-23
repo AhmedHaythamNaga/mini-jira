@@ -20,24 +20,23 @@ const lib_dynamodb_2 = require("@aws-sdk/lib-dynamodb");
 const client_s3_1 = require("@aws-sdk/client-s3");
 const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
 const client_cloudwatch_1 = require("@aws-sdk/client-cloudwatch");
-const client_sns_1 = require("@aws-sdk/client-sns");
 const uuid_1 = require("uuid");
 const dynamodb_module_1 = require("../dynamodb/dynamodb.module");
 const dynamodb_helpers_1 = require("../dynamodb/dynamodb-helpers");
+const notifications_service_1 = require("../notifications/notifications.service");
 let TasksService = class TasksService {
-    constructor(dynamo, config) {
+    constructor(dynamo, config, notifications) {
         this.dynamo = dynamo;
         this.config = config;
+        this.notifications = notifications;
         const region = this.config.get('AWS_REGION', 'us-east-1');
         this.tableName = this.config.get('DYNAMODB_TASKS_TABLE', 'mini-jira-tasks');
         this.usersTable = this.config.get('DYNAMODB_USERS_TABLE', 'mini-jira-users');
         this.auditTable = this.config.get('DYNAMODB_AUDIT_TABLE', 'mini-jira-audit');
         this.originalsBucket = this.config.get('S3_ORIGINALS_BUCKET', 'mini-jira-original-images-2');
         this.resizedBucket = this.config.get('S3_RESIZED_BUCKET', 'mini-jira-resized-images-2');
-        this.snsTopicArn = this.config.get('SNS_TASK_ASSIGNMENT_TOPIC_ARN', '');
         this.s3 = new client_s3_1.S3Client({ region });
         this.cloudwatch = new client_cloudwatch_1.CloudWatchClient({ region });
-        this.sns = new client_sns_1.SNSClient({ region });
     }
     async create(dto, user) {
         const now = new Date().toISOString();
@@ -65,14 +64,44 @@ let TasksService = class TasksService {
         return task;
     }
     async findAll(user) {
-        if (user.role === 'employee' && user.teamId) {
-            const result = await this.dynamo.send(new lib_dynamodb_2.QueryCommand({
-                TableName: this.tableName,
-                IndexName: 'teamID-index',
-                KeyConditionExpression: 'teamID = :teamID',
-                ExpressionAttributeValues: { ':teamID': user.teamId },
-            }));
-            return result.Items || [];
+        if (user.role === 'employee') {
+            const byId = new Map();
+            const assigned = await this.findByAssignee(user.userId);
+            for (const item of assigned) {
+                const id = item.taskID ?? item.taskId;
+                if (id)
+                    byId.set(id, item);
+            }
+            if (user.teamId) {
+                try {
+                    const teamResult = await this.dynamo.send(new lib_dynamodb_2.QueryCommand({
+                        TableName: this.tableName,
+                        IndexName: 'teamID-index',
+                        KeyConditionExpression: 'teamID = :teamID',
+                        ExpressionAttributeValues: { ':teamID': user.teamId },
+                    }));
+                    for (const item of teamResult.Items || []) {
+                        const id = item.taskID ?? item.taskId;
+                        if (id)
+                            byId.set(id, item);
+                    }
+                }
+                catch {
+                }
+            }
+            if (byId.size > 0) {
+                return Array.from(byId.values());
+            }
+            const result = await this.dynamo.send(new lib_dynamodb_2.ScanCommand({ TableName: this.tableName }));
+            return (result.Items || []).filter((item) => {
+                const assignee = item.assigneeID ??
+                    item.assigneeId;
+                const team = item.teamID ??
+                    item.teamId;
+                return (assignee === user.userId ||
+                    (user.teamId && team === user.teamId) ||
+                    !user.teamId);
+            });
         }
         const result = await this.dynamo.send(new lib_dynamodb_2.ScanCommand({ TableName: this.tableName }));
         return result.Items || [];
@@ -84,9 +113,15 @@ let TasksService = class TasksService {
         ]);
         if (!item)
             throw new common_1.NotFoundException(`Task ${taskId} not found`);
-        if (user && user.role === 'employee' && user.teamId) {
+        if (user && user.role === 'employee') {
             const itemTeam = item.teamID ?? item.teamId;
-            if (itemTeam && itemTeam !== user.teamId) {
+            const assignee = item.assigneeID ??
+                item.assigneeId;
+            const isAssignee = assignee === user.userId;
+            if (user.teamId &&
+                itemTeam &&
+                itemTeam !== user.teamId &&
+                !isAssignee) {
                 throw new common_1.ForbiddenException('You are not authorized to access this task');
             }
         }
@@ -258,38 +293,37 @@ let TasksService = class TasksService {
         return { imageUrl: url };
     }
     async publishAssignment(task, assigner) {
-        if (!this.snsTopicArn)
+        const assigneeID = task.assigneeID ??
+            task.assigneeId;
+        if (!assigneeID)
             return;
         let assigneeName = '';
         let assigneeEmail = '';
         try {
-            const assignee = await this.dynamo.send(new lib_dynamodb_2.GetCommand({
-                TableName: this.usersTable,
-                Key: { userID: task.assigneeID },
-            }));
-            if (assignee.Item) {
-                assigneeName = assignee.Item.name;
-                assigneeEmail = assignee.Item.email;
+            const assignee = await (0, dynamodb_helpers_1.getItemByIdVariants)(this.dynamo, this.usersTable, assigneeID, ['userID', 'userId']);
+            if (assignee) {
+                assigneeName = assignee.name ?? '';
+                assigneeEmail = assignee.email ?? '';
             }
         }
-        catch {
+        catch (err) {
+            console.error(`Assignee lookup failed for ${assigneeID}:`, err.message);
         }
-        await this.sns.send(new client_sns_1.PublishCommand({
-            TopicArn: this.snsTopicArn,
-            Message: JSON.stringify({
-                type: 'TASK_ASSIGNED',
-                taskID: task.taskID,
-                taskTitle: task.title,
-                assigneeID: task.assigneeID,
+        try {
+            await this.notifications.publishTaskAssignment({
+                taskID: task.taskID ?? task.taskId,
+                taskTitle: task.title ?? 'Untitled task',
+                assigneeID,
                 assigneeName,
                 assigneeEmail,
-                teamID: task.teamID,
+                teamID: task.teamID ??
+                    task.teamId,
                 assignedBy: assigner.name,
-                timestamp: new Date().toISOString(),
-            }),
-        })).catch((err) => {
+            });
+        }
+        catch (err) {
             console.error('Failed to publish SNS assignment:', err.message);
-        });
+        }
     }
     async writeAuditLog(taskId, changedBy, oldStatus, newStatus) {
         await this.dynamo.send(new lib_dynamodb_2.PutCommand({
@@ -327,6 +361,7 @@ exports.TasksService = TasksService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, common_1.Inject)(dynamodb_module_1.DYNAMO_CLIENT)),
     __metadata("design:paramtypes", [lib_dynamodb_1.DynamoDBDocumentClient,
-        config_1.ConfigService])
+        config_1.ConfigService,
+        notifications_service_1.NotificationsService])
 ], TasksService);
 //# sourceMappingURL=tasks.service.js.map

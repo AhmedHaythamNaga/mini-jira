@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import {
   PutCommand,
-  GetCommand,
   QueryCommand,
   UpdateCommand,
   DeleteCommand,
@@ -12,10 +11,10 @@ import {
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { CloudWatchClient, PutMetricDataCommand } from '@aws-sdk/client-cloudwatch';
-import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 import { v4 as uuidv4 } from 'uuid';
 import { DYNAMO_CLIENT } from '../dynamodb/dynamodb.module';
 import { buildPrimaryKey, getItemByIdVariants } from '../dynamodb/dynamodb-helpers';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { AuthUser } from '../auth/decorators/current-user.decorator';
@@ -27,14 +26,13 @@ export class TasksService {
   private readonly auditTable: string;
   private readonly originalsBucket: string;
   private readonly resizedBucket: string;
-  private readonly snsTopicArn: string;
   private readonly s3: S3Client;
   private readonly cloudwatch: CloudWatchClient;
-  private readonly sns: SNSClient;
 
   constructor(
     @Inject(DYNAMO_CLIENT) private readonly dynamo: DynamoDBDocumentClient,
     private readonly config: ConfigService,
+    private readonly notifications: NotificationsService,
   ) {
     const region = this.config.get<string>('AWS_REGION', 'us-east-1');
     this.tableName = this.config.get<string>('DYNAMODB_TASKS_TABLE', 'mini-jira-tasks');
@@ -42,10 +40,8 @@ export class TasksService {
     this.auditTable = this.config.get<string>('DYNAMODB_AUDIT_TABLE', 'mini-jira-audit');
     this.originalsBucket = this.config.get<string>('S3_ORIGINALS_BUCKET', 'mini-jira-original-images-2');
     this.resizedBucket = this.config.get<string>('S3_RESIZED_BUCKET', 'mini-jira-resized-images-2');
-    this.snsTopicArn = this.config.get<string>('SNS_TASK_ASSIGNMENT_TOPIC_ARN', '');
     this.s3 = new S3Client({ region });
     this.cloudwatch = new CloudWatchClient({ region });
-    this.sns = new SNSClient({ region });
   }
 
   async create(dto: CreateTaskDto, user: AuthUser) {
@@ -83,20 +79,56 @@ export class TasksService {
   }
 
   async findAll(user: AuthUser) {
-    // Team isolation: employees only see their team's tasks
-    if (user.role === 'employee' && user.teamId) {
+    if (user.role === 'employee') {
+      const byId = new Map<string, Record<string, unknown>>();
+
+      const assigned = await this.findByAssignee(user.userId);
+      for (const item of assigned) {
+        const id = (item.taskID as string) ?? (item.taskId as string);
+        if (id) byId.set(id, item);
+      }
+
+      if (user.teamId) {
+        try {
+          const teamResult = await this.dynamo.send(
+            new QueryCommand({
+              TableName: this.tableName,
+              IndexName: 'teamID-index',
+              KeyConditionExpression: 'teamID = :teamID',
+              ExpressionAttributeValues: { ':teamID': user.teamId },
+            }),
+          );
+          for (const item of teamResult.Items || []) {
+            const id = (item.taskID as string) ?? (item.taskId as string);
+            if (id) byId.set(id, item);
+          }
+        } catch {
+          // GSI may be missing in some environments; assignee query still applies.
+        }
+      }
+
+      if (byId.size > 0) {
+        return Array.from(byId.values());
+      }
+
       const result = await this.dynamo.send(
-        new QueryCommand({
-          TableName: this.tableName,
-          IndexName: 'teamID-index',
-          KeyConditionExpression: 'teamID = :teamID',
-          ExpressionAttributeValues: { ':teamID': user.teamId },
-        }),
+        new ScanCommand({ TableName: this.tableName }),
       );
-      return result.Items || [];
+      return (result.Items || []).filter((item) => {
+        const assignee =
+          (item.assigneeID as string | undefined) ??
+          (item.assigneeId as string | undefined);
+        const team =
+          (item.teamID as string | undefined) ??
+          (item.teamId as string | undefined);
+        return (
+          assignee === user.userId ||
+          (user.teamId && team === user.teamId) ||
+          !user.teamId
+        );
+      });
     }
 
-    // Managers/admins see all tasks
     const result = await this.dynamo.send(
       new ScanCommand({ TableName: this.tableName }),
     );
@@ -110,11 +142,19 @@ export class TasksService {
     ]);
     if (!item) throw new NotFoundException(`Task ${taskId} not found`);
 
-    // Enforce team isolation for employees
-    if (user && user.role === 'employee' && user.teamId) {
+    if (user && user.role === 'employee') {
       const itemTeam =
         (item.teamID as string | undefined) ?? (item.teamId as string | undefined);
-      if (itemTeam && itemTeam !== user.teamId) {
+      const assignee =
+        (item.assigneeID as string | undefined) ??
+        (item.assigneeId as string | undefined);
+      const isAssignee = assignee === user.userId;
+      if (
+        user.teamId &&
+        itemTeam &&
+        itemTeam !== user.teamId &&
+        !isAssignee
+      ) {
         throw new ForbiddenException('You are not authorized to access this task');
       }
     }
@@ -343,47 +383,52 @@ export class TasksService {
   // ---- Private helpers ----
 
   private async publishAssignment(
-    task: Record<string, any>,
+    task: Record<string, unknown>,
     assigner: AuthUser,
   ) {
-    if (!this.snsTopicArn) return;
+    const assigneeID =
+      (task.assigneeID as string | undefined) ??
+      (task.assigneeId as string | undefined);
+    if (!assigneeID) return;
 
-    // Look up assignee details
     let assigneeName = '';
     let assigneeEmail = '';
     try {
-      const assignee = await this.dynamo.send(
-        new GetCommand({
-          TableName: this.usersTable,
-          Key: { userID: task.assigneeID },
-        }),
+      const assignee = await getItemByIdVariants(
+        this.dynamo,
+        this.usersTable,
+        assigneeID,
+        ['userID', 'userId'],
       );
-      if (assignee.Item) {
-        assigneeName = assignee.Item.name as string;
-        assigneeEmail = assignee.Item.email as string;
+      if (assignee) {
+        assigneeName = (assignee.name as string) ?? '';
+        assigneeEmail = (assignee.email as string) ?? '';
       }
-    } catch {
-      // If user lookup fails, proceed without email
+    } catch (err) {
+      console.error(
+        `Assignee lookup failed for ${assigneeID}:`,
+        (err as Error).message,
+      );
     }
 
-    await this.sns.send(
-      new PublishCommand({
-        TopicArn: this.snsTopicArn,
-        Message: JSON.stringify({
-          type: 'TASK_ASSIGNED',
-          taskID: task.taskID,
-          taskTitle: task.title,
-          assigneeID: task.assigneeID,
-          assigneeName,
-          assigneeEmail,
-          teamID: task.teamID,
-          assignedBy: assigner.name,
-          timestamp: new Date().toISOString(),
-        }),
-      }),
-    ).catch((err) => {
-      console.error('Failed to publish SNS assignment:', err.message);
-    });
+    try {
+      await this.notifications.publishTaskAssignment({
+        taskID: (task.taskID as string) ?? (task.taskId as string),
+        taskTitle: (task.title as string) ?? 'Untitled task',
+        assigneeID,
+        assigneeName,
+        assigneeEmail,
+        teamID:
+          (task.teamID as string | undefined) ??
+          (task.teamId as string | undefined),
+        assignedBy: assigner.name,
+      });
+    } catch (err) {
+      console.error(
+        'Failed to publish SNS assignment:',
+        (err as Error).message,
+      );
+    }
   }
 
   private async writeAuditLog(

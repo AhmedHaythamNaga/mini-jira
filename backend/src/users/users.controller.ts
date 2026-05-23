@@ -14,6 +14,10 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import {
+  CurrentUser,
+  AuthUser,
+} from '../auth/decorators/current-user.decorator';
 
 @Controller('users')
 @UseGuards(AuthGuard, RolesGuard)
@@ -30,6 +34,11 @@ export class UsersController {
   @Roles('admin', 'manager')
   findAll() {
     return this.usersService.findAll();
+  }
+
+  @Get('me')
+  getMe(@CurrentUser() user: AuthUser) {
+    return this.usersService.resolveAuthUser(user);
   }
 
   @Get(':id')

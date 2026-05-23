@@ -1,75 +1,105 @@
 import crypto from 'crypto';
-import { SQSEvent } from 'aws-lambda';
+import type { SQSEvent, SNSEvent } from 'aws-lambda';
 import { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';
 import { CloudWatchClient, PutMetricDataCommand } from '@aws-sdk/client-cloudwatch';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
+import {
+  buildAssignmentEmailBody,
+  parseAssignmentMessage,
+  TaskAssignmentMessage,
+} from '../notifications/assignment-message';
 
 const dynamodb = new DynamoDBClient({});
 const cloudwatch = new CloudWatchClient({});
 const ses = new SESClient({});
 
-export interface AssignmentMessage {
-  taskID: string;
-  taskTitle: string;
-  assigneeID?: string;
-  assigneeName?: string;
-  assigneeEmail: string;
-  teamID?: string;
-  assignedBy?: string;
+function extractMessages(event: SQSEvent | SNSEvent): TaskAssignmentMessage[] {
+  const records = event.Records ?? [];
+  if (!records.length) return [];
+
+  if ('Sns' in records[0]) {
+    return (records as SNSEvent['Records']).map((record) =>
+      parseAssignmentMessage(record.Sns.Message),
+    );
+  }
+
+  return (records as SQSEvent['Records']).map((record) =>
+    parseAssignmentMessage(record.body),
+  );
 }
 
-export const handler = async (event: SQSEvent): Promise<{ statusCode: number }> => {
+async function sendAssignmentEmail(message: TaskAssignmentMessage) {
+  const email = message.assigneeEmail?.trim().toLowerCase();
+  if (!email) {
+    console.warn(
+      `Skipping email for task ${message.taskID}: missing assigneeEmail in SNS message`,
+    );
+    return;
+  }
+
+  const source = process.env.EMAIL_SOURCE;
+  if (!source) {
+    throw new Error('EMAIL_SOURCE is not defined');
+  }
+
+  await ses.send(
+    new SendEmailCommand({
+      Source: source,
+      Destination: { ToAddresses: [email] },
+      Message: {
+        Subject: {
+          Data: `Mini-Jira: Task assigned — ${message.taskTitle}`,
+        },
+        Body: {
+          Text: { Data: buildAssignmentEmailBody(message) },
+        },
+      },
+    }),
+  );
+
+  console.log(`Assignment email sent to ${email} for task ${message.taskID}`);
+}
+
+export const handler = async (
+  event: SQSEvent | SNSEvent,
+): Promise<{ statusCode: number }> => {
   console.log('EVENT:', JSON.stringify(event));
 
-  for (const record of event.Records) {
-    const message = JSON.parse(record.body) as AssignmentMessage;
+  if (!process.env.AUDIT_LOG_TABLE) {
+    throw new Error('AUDIT_LOG_TABLE is not defined');
+  }
+
+  const messages = extractMessages(event);
+  if (!messages.length) {
+    console.warn('No assignment messages to process');
+    return { statusCode: 200 };
+  }
+
+  for (const message of messages) {
+    if (message.type && message.type !== 'TASK_ASSIGNED') {
+      console.log(`Ignoring message type ${message.type}`);
+      continue;
+    }
 
     console.log('MESSAGE:', message);
 
-    // Validate required env vars
-    if (!process.env.EMAIL_SOURCE) {
-      throw new Error('EMAIL_SOURCE is not defined');
-    }
-    if (!process.env.AUDIT_LOG_TABLE) {
-      throw new Error('AUDIT_LOG_TABLE is not defined');
-    }
+    await sendAssignmentEmail(message);
 
-    // 1. SEND EMAIL
-    await ses.send(
-      new SendEmailCommand({
-        Source: process.env.EMAIL_SOURCE,
-        Destination: {
-          ToAddresses: [message.assigneeEmail],
-        },
-        Message: {
-          Subject: {
-            Data: 'New Task Assigned',
-          },
-          Body: {
-            Text: {
-              Data: `Hello ${message.assigneeName || ''},\n\nYou were assigned a new task.\n\nTask:\n${message.taskTitle}\n\nAssigned By:\n${message.assignedBy || ''}`,
-            },
-          },
-        },
-      }),
-    );
-
-    // 2. WRITE AUDIT LOG
     await dynamodb.send(
       new PutItemCommand({
         TableName: process.env.AUDIT_LOG_TABLE,
         Item: {
           LogID: { S: crypto.randomUUID() },
           taskID: { S: message.taskID },
-          action: { S: 'TASK_ASSIGNED' },
+          action: { S: 'TASK_ASSIGNED_EMAIL_SENT' },
           assigneeID: { S: message.assigneeID || '' },
+          assigneeEmail: { S: message.assigneeEmail || '' },
           teamID: { S: message.teamID || '' },
-          timestamp: { S: new Date().toISOString() },
+          timestamp: { S: message.timestamp || new Date().toISOString() },
         },
       }),
     );
 
-    // 3. PUBLISH CLOUDWATCH METRIC
     await cloudwatch.send(
       new PutMetricDataCommand({
         Namespace: 'MiniJira',
@@ -90,7 +120,5 @@ export const handler = async (event: SQSEvent): Promise<{ statusCode: number }> 
     );
   }
 
-  return {
-    statusCode: 200,
-  };
+  return { statusCode: 200 };
 };

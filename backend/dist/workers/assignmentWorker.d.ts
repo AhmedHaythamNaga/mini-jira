@@ -1,13 +1,4 @@
-import { SQSEvent } from 'aws-lambda';
-export interface AssignmentMessage {
-    taskID: string;
-    taskTitle: string;
-    assigneeID?: string;
-    assigneeName?: string;
-    assigneeEmail: string;
-    teamID?: string;
-    assignedBy?: string;
-}
-export declare const handler: (event: SQSEvent) => Promise<{
+import type { SQSEvent, SNSEvent } from 'aws-lambda';
+export declare const handler: (event: SQSEvent | SNSEvent) => Promise<{
     statusCode: number;
 }>;

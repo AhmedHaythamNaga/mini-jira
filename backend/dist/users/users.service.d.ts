@@ -28,6 +28,11 @@ export declare class UsersService {
     private formatCognitoError;
     findAll(): Promise<Record<string, any>[]>;
     findOne(userId: string): Promise<Record<string, any>>;
+    findByEmail(email: string): Promise<Record<string, any>>;
+    resolveAuthUser(auth: {
+        userId: string;
+        email: string;
+    }): Promise<Record<string, any>>;
     update(userId: string, dto: UpdateUserDto): Promise<Record<string, any> | undefined>;
     remove(userId: string): Promise<{
         deleted: boolean;

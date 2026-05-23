@@ -205,6 +205,32 @@ export class UsersService {
     return item;
   }
 
+  async findByEmail(email: string) {
+    const normalized = this.normalizeEmail(email);
+    const result = await this.dynamo.send(
+      new ScanCommand({
+        TableName: this.tableName,
+        FilterExpression: 'email = :email',
+        ExpressionAttributeValues: { ':email': normalized },
+      }),
+    );
+    const item = result.Items?.[0];
+    if (!item) throw new NotFoundException(`User with email ${email} not found`);
+    return item;
+  }
+
+  async resolveAuthUser(auth: {
+    userId: string;
+    email: string;
+  }) {
+    try {
+      return await this.findOne(auth.userId);
+    } catch {
+      if (!auth.email) throw new NotFoundException('User profile not found');
+      return this.findByEmail(auth.email);
+    }
+  }
+
   async update(userId: string, dto: UpdateUserDto) {
     const existing = await this.findOne(userId);
 

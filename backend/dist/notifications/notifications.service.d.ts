@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config';
+import { buildAssignmentEmailBody } from './assignment-message';
 export interface TaskAssignmentPayload {
     taskID: string;
     taskTitle: string;
@@ -10,8 +11,10 @@ export interface TaskAssignmentPayload {
 }
 export declare class NotificationsService {
     private readonly config;
+    private readonly logger;
     private readonly sns;
     private readonly topicArn;
     constructor(config: ConfigService);
     publishTaskAssignment(payload: TaskAssignmentPayload): Promise<void>;
 }
+export { buildAssignmentEmailBody };
