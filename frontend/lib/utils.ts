@@ -99,6 +99,26 @@ export function canManageAll(user: User | null) {
   return user?.role === "manager" || user?.role === "admin";
 }
 
+export function isTaskAssignedToUser(
+  task: Task,
+  user: User | null,
+  users: User[] = [],
+) {
+  if (!user) return false;
+  if (task.assigneeId && task.assigneeId === user.id) return true;
+
+  const assignee = users.find((item) => item.id === task.assigneeId);
+  if (
+    assignee?.email &&
+    user.email &&
+    assignee.email.toLowerCase() === user.email.toLowerCase()
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export function filterTaskByScope(
   task: Task,
   user: User | null,
@@ -113,7 +133,7 @@ export function filterTaskByScope(
   return (
     task.team === user.team ||
     task.team === "All" ||
-    task.assigneeId === user.id
+    isTaskAssignedToUser(task, user)
   );
 }
 

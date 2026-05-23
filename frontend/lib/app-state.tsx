@@ -25,6 +25,7 @@ import {
   apiGetTeams,
   apiGetUsers,
   apiGetUser,
+  apiGetCurrentUser,
   apiLogin,
   apiUpdateTask,
   apiUploadTaskImage,
@@ -335,8 +336,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const currentUser = activeSession.user;
+      let currentUser = activeSession.user;
       const token = activeSession.tokens.idToken;
+
+      if (currentUser.role === "employee") {
+        try {
+          const profile = await apiGetCurrentUser(token);
+          const profileId =
+            profile.userID ??
+            (profile as { userId?: string }).userId ??
+            currentUser.id;
+          currentUser = {
+            ...currentUser,
+            id: profileId,
+            name: profile.name ?? currentUser.name,
+            email: profile.email ?? currentUser.email,
+            role: (profile.role as User["role"]) ?? currentUser.role,
+            teamId:
+              profile.teamID ??
+              (profile as { teamId?: string }).teamId ??
+              currentUser.teamId,
+          };
+        } catch {
+          // Fall back to JWT claims if profile lookup fails.
+        }
+      }
 
       const [tasksRaw, projectsRaw] = await Promise.all([
         apiGetTasks(token),
@@ -446,18 +470,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
         normalizedActivities,
       );
 
+      const employeeTeamName =
+        currentUser.role === "employee" && teamsRaw[0]
+          ? teamsRaw[0].name
+          : currentUser.team;
+
       setState((current) => ({
         ...current,
         user: {
           ...currentUser,
           team:
-            currentUser.role === "employee" && teamsRaw[0]
-              ? teamsRaw[0].name
-              : currentUser.team,
+            currentUser.role === "employee" ? employeeTeamName : currentUser.team,
         },
         teamFilter:
           currentUser.role === "employee"
-            ? currentUser.team
+            ? employeeTeamName
             : current.teamFilter,
         users: normalizedUsers,
         teams: normalizedTeams,

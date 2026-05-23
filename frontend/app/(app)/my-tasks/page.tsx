@@ -5,7 +5,7 @@ import { ArrowDownAZ, ArrowDownWideNarrow, Funnel } from 'lucide-react';
 import { TaskDetailModal } from '@/components/task-detail-modal';
 import { useApp } from '@/lib/app-state';
 import { Task } from '@/lib/types';
-import { filterTaskByScope, formatDate, matchesSearch, parseDateSafe, priorityLabel, priorityOrder, statusLabel, taskIsOverdue } from '@/lib/utils';
+import { filterTaskByScope, formatDate, isTaskAssignedToUser, matchesSearch, parseDateSafe, priorityLabel, priorityOrder, statusLabel, taskIsOverdue } from '@/lib/utils';
 
 type SortKey = 'deadline' | 'priority' | 'status';
 
@@ -24,7 +24,7 @@ const statusWeight: Record<Task['status'], number> = {
 };
 
 export default function MyTasksPage() {
-  const { user, tasks, teamFilter, searchQuery, ready } = useApp();
+  const { user, tasks, users, teamFilter, searchQuery, ready } = useApp();
   const [sortKey, setSortKey] = useState<SortKey>('deadline');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
@@ -33,7 +33,7 @@ export default function MyTasksPage() {
 
     const filtered = tasks.filter(
       (task) =>
-        task.assigneeId === user.id &&
+        isTaskAssignedToUser(task, user, users) &&
         filterTaskByScope(task, user, teamFilter) &&
         matchesSearch(task, searchQuery),
     );
@@ -49,7 +49,7 @@ export default function MyTasksPage() {
       }
       return (statusWeight[left.status] ?? 99) - (statusWeight[right.status] ?? 99);
     });
-  }, [searchQuery, sortKey, tasks, teamFilter, user]);
+  }, [searchQuery, sortKey, tasks, teamFilter, user, users]);
 
   if (!ready || !user) {
     return null;

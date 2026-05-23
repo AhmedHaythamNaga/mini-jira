@@ -210,6 +210,10 @@ export function apiGetUser(token: string, userId: string) {
   return requestJson<BackendUser>(`/users/${userId}`, {}, token);
 }
 
+export function apiGetCurrentUser(token: string) {
+  return requestJson<BackendUser>("/users/me", {}, token);
+}
+
 export function apiCreateUser(token: string, body: Record<string, unknown>) {
   return requestJson<BackendUser>('/users', {
     method: 'POST',
