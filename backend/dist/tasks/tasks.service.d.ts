@@ -10,6 +10,7 @@ export declare class TasksService {
     private readonly notifications;
     private readonly tableName;
     private readonly usersTable;
+    private readonly teamsTable;
     private readonly auditTable;
     private readonly originalsBucket;
     private readonly resizedBucket;

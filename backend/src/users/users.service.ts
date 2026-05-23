@@ -23,12 +23,14 @@ import {
 } from '@aws-sdk/client-cognito-identity-provider';
 import { DYNAMO_CLIENT } from '../dynamodb/dynamodb.module';
 import { buildPrimaryKey, getItemByIdVariants } from '../dynamodb/dynamodb-helpers';
+import { resolveTeamKeys } from '../teams/team-keys';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
   private readonly tableName: string;
+  private readonly teamsTable: string;
   private readonly cognitoClient: CognitoIdentityProviderClient;
   private readonly userPoolId: string;
 
@@ -37,6 +39,7 @@ export class UsersService {
     private readonly config: ConfigService,
   ) {
     this.tableName = this.config.get<string>('DYNAMODB_USERS_TABLE', 'mini-jira-users');
+    this.teamsTable = this.config.get<string>('DYNAMODB_TEAMS_TABLE', 'mini-jira-teams');
     this.userPoolId = this.config.get<string>('COGNITO_USER_POOL_ID', '');
     this.cognitoClient = new CognitoIdentityProviderClient({
       region: this.config.get<string>('AWS_REGION', 'us-east-1'),
@@ -223,12 +226,42 @@ export class UsersService {
     userId: string;
     email: string;
   }) {
+    let user: Record<string, unknown>;
     try {
-      return await this.findOne(auth.userId);
+      user = (await this.findOne(auth.userId)) as Record<string, unknown>;
     } catch {
       if (!auth.email) throw new NotFoundException('User profile not found');
-      return this.findByEmail(auth.email);
+      user = (await this.findByEmail(auth.email)) as Record<string, unknown>;
     }
+
+    const teamRef =
+      (user.teamID as string | undefined) ??
+      (user.teamId as string | undefined);
+    if (!teamRef) return user;
+
+    let canonicalTeamId = teamRef;
+    try {
+      const team = await getItemByIdVariants(
+        this.dynamo,
+        this.teamsTable,
+        teamRef,
+        ['teamID', 'teamId'],
+      );
+      canonicalTeamId =
+        (team?.teamID as string) ?? (team?.teamId as string) ?? teamRef;
+    } catch {
+      const keys = await resolveTeamKeys(this.dynamo, this.teamsTable, teamRef);
+      canonicalTeamId =
+        keys.find((key) => key !== teamRef && key !== teamRef.trim()) ??
+        keys[0] ??
+        teamRef;
+    }
+
+    return {
+      ...user,
+      teamID: canonicalTeamId,
+      teamId: canonicalTeamId,
+    };
   }
 
   async update(userId: string, dto: UpdateUserDto) {

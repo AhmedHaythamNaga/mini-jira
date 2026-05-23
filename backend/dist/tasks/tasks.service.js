@@ -24,6 +24,7 @@ const uuid_1 = require("uuid");
 const dynamodb_module_1 = require("../dynamodb/dynamodb.module");
 const dynamodb_helpers_1 = require("../dynamodb/dynamodb-helpers");
 const notifications_service_1 = require("../notifications/notifications.service");
+const team_keys_1 = require("../teams/team-keys");
 let TasksService = class TasksService {
     constructor(dynamo, config, notifications) {
         this.dynamo = dynamo;
@@ -32,6 +33,7 @@ let TasksService = class TasksService {
         const region = this.config.get('AWS_REGION', 'us-east-1');
         this.tableName = this.config.get('DYNAMODB_TASKS_TABLE', 'mini-jira-tasks');
         this.usersTable = this.config.get('DYNAMODB_USERS_TABLE', 'mini-jira-users');
+        this.teamsTable = this.config.get('DYNAMODB_TEAMS_TABLE', 'mini-jira-teams');
         this.auditTable = this.config.get('DYNAMODB_AUDIT_TABLE', 'mini-jira-audit');
         this.originalsBucket = this.config.get('S3_ORIGINALS_BUCKET', 'mini-jira-original-images-2');
         this.resizedBucket = this.config.get('S3_RESIZED_BUCKET', 'mini-jira-resized-images-2');
@@ -65,43 +67,58 @@ let TasksService = class TasksService {
     }
     async findAll(user) {
         if (user.role === 'employee') {
+            const teamKeys = await (0, team_keys_1.resolveTeamKeys)(this.dynamo, this.teamsTable, user.teamId);
             const byId = new Map();
-            const assigned = await this.findByAssignee(user.userId);
-            for (const item of assigned) {
-                const id = item.taskID ?? item.taskId;
-                if (id)
-                    byId.set(id, item);
-            }
-            if (user.teamId) {
-                try {
-                    const teamResult = await this.dynamo.send(new lib_dynamodb_2.QueryCommand({
-                        TableName: this.tableName,
-                        IndexName: 'teamID-index',
-                        KeyConditionExpression: 'teamID = :teamID',
-                        ExpressionAttributeValues: { ':teamID': user.teamId },
-                    }));
-                    for (const item of teamResult.Items || []) {
-                        const id = item.taskID ?? item.taskId;
-                        if (id)
-                            byId.set(id, item);
+            const addItems = (items) => {
+                for (const item of items) {
+                    const id = item.taskID ?? item.taskId;
+                    if (id)
+                        byId.set(id, item);
+                }
+            };
+            addItems(await this.findByAssignee(user.userId));
+            for (const teamKey of teamKeys) {
+                for (const indexName of ['teamID-index', 'teamId-index']) {
+                    try {
+                        const teamResult = await this.dynamo.send(new lib_dynamodb_2.QueryCommand({
+                            TableName: this.tableName,
+                            IndexName: indexName,
+                            KeyConditionExpression: 'teamID = :teamID',
+                            ExpressionAttributeValues: { ':teamID': teamKey },
+                        }));
+                        addItems((teamResult.Items || []));
+                        break;
+                    }
+                    catch {
+                        try {
+                            const teamResult = await this.dynamo.send(new lib_dynamodb_2.QueryCommand({
+                                TableName: this.tableName,
+                                IndexName: indexName,
+                                KeyConditionExpression: 'teamId = :teamId',
+                                ExpressionAttributeValues: { ':teamId': teamKey },
+                            }));
+                            addItems((teamResult.Items || []));
+                            break;
+                        }
+                        catch {
+                        }
                     }
                 }
-                catch {
-                }
             }
-            if (byId.size > 0) {
-                return Array.from(byId.values());
-            }
-            const result = await this.dynamo.send(new lib_dynamodb_2.ScanCommand({ TableName: this.tableName }));
-            return (result.Items || []).filter((item) => {
+            const scanned = await this.dynamo.send(new lib_dynamodb_2.ScanCommand({ TableName: this.tableName }));
+            for (const item of (scanned.Items || [])) {
                 const assignee = item.assigneeID ??
                     item.assigneeId;
-                const team = item.teamID ??
-                    item.teamId;
-                return (assignee === user.userId ||
-                    (user.teamId && team === user.teamId) ||
-                    !user.teamId);
-            });
+                const visible = assignee === user.userId ||
+                    (0, team_keys_1.recordMatchesTeamKeys)(item, teamKeys) ||
+                    (!user.teamId && !(0, team_keys_1.readRecordTeamId)(item));
+                if (visible) {
+                    const id = item.taskID ?? item.taskId;
+                    if (id)
+                        byId.set(id, item);
+                }
+            }
+            return Array.from(byId.values());
         }
         const result = await this.dynamo.send(new lib_dynamodb_2.ScanCommand({ TableName: this.tableName }));
         return result.Items || [];
@@ -114,14 +131,12 @@ let TasksService = class TasksService {
         if (!item)
             throw new common_1.NotFoundException(`Task ${taskId} not found`);
         if (user && user.role === 'employee') {
-            const itemTeam = item.teamID ?? item.teamId;
             const assignee = item.assigneeID ??
                 item.assigneeId;
             const isAssignee = assignee === user.userId;
-            if (user.teamId &&
-                itemTeam &&
-                itemTeam !== user.teamId &&
-                !isAssignee) {
+            const teamKeys = await (0, team_keys_1.resolveTeamKeys)(this.dynamo, this.teamsTable, user.teamId);
+            const onTeam = (0, team_keys_1.recordMatchesTeamKeys)(item, teamKeys);
+            if (user.teamId && (0, team_keys_1.readRecordTeamId)(item) && !onTeam && !isAssignee) {
                 throw new common_1.ForbiddenException('You are not authorized to access this task');
             }
         }

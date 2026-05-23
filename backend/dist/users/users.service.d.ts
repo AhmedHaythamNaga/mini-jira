@@ -6,6 +6,7 @@ export declare class UsersService {
     private readonly dynamo;
     private readonly config;
     private readonly tableName;
+    private readonly teamsTable;
     private readonly cognitoClient;
     private readonly userPoolId;
     constructor(dynamo: DynamoDBDocumentClient, config: ConfigService);
@@ -32,7 +33,7 @@ export declare class UsersService {
     resolveAuthUser(auth: {
         userId: string;
         email: string;
-    }): Promise<Record<string, any>>;
+    }): Promise<Record<string, unknown>>;
     update(userId: string, dto: UpdateUserDto): Promise<Record<string, any> | undefined>;
     remove(userId: string): Promise<{
         deleted: boolean;

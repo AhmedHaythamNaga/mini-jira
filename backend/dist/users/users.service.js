@@ -20,11 +20,13 @@ const lib_dynamodb_2 = require("@aws-sdk/lib-dynamodb");
 const client_cognito_identity_provider_1 = require("@aws-sdk/client-cognito-identity-provider");
 const dynamodb_module_1 = require("../dynamodb/dynamodb.module");
 const dynamodb_helpers_1 = require("../dynamodb/dynamodb-helpers");
+const team_keys_1 = require("../teams/team-keys");
 let UsersService = class UsersService {
     constructor(dynamo, config) {
         this.dynamo = dynamo;
         this.config = config;
         this.tableName = this.config.get('DYNAMODB_USERS_TABLE', 'mini-jira-users');
+        this.teamsTable = this.config.get('DYNAMODB_TEAMS_TABLE', 'mini-jira-teams');
         this.userPoolId = this.config.get('COGNITO_USER_POOL_ID', '');
         this.cognitoClient = new client_cognito_identity_provider_1.CognitoIdentityProviderClient({
             region: this.config.get('AWS_REGION', 'us-east-1'),
@@ -171,14 +173,37 @@ let UsersService = class UsersService {
         return item;
     }
     async resolveAuthUser(auth) {
+        let user;
         try {
-            return await this.findOne(auth.userId);
+            user = (await this.findOne(auth.userId));
         }
         catch {
             if (!auth.email)
                 throw new common_1.NotFoundException('User profile not found');
-            return this.findByEmail(auth.email);
+            user = (await this.findByEmail(auth.email));
         }
+        const teamRef = user.teamID ??
+            user.teamId;
+        if (!teamRef)
+            return user;
+        let canonicalTeamId = teamRef;
+        try {
+            const team = await (0, dynamodb_helpers_1.getItemByIdVariants)(this.dynamo, this.teamsTable, teamRef, ['teamID', 'teamId']);
+            canonicalTeamId =
+                team?.teamID ?? team?.teamId ?? teamRef;
+        }
+        catch {
+            const keys = await (0, team_keys_1.resolveTeamKeys)(this.dynamo, this.teamsTable, teamRef);
+            canonicalTeamId =
+                keys.find((key) => key !== teamRef && key !== teamRef.trim()) ??
+                    keys[0] ??
+                    teamRef;
+        }
+        return {
+            ...user,
+            teamID: canonicalTeamId,
+            teamId: canonicalTeamId,
+        };
     }
     async update(userId, dto) {
         const existing = await this.findOne(userId);

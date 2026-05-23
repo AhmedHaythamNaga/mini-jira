@@ -16,7 +16,7 @@ export declare class UsersController {
         createdAt: string;
     }>;
     findAll(): Promise<Record<string, any>[]>;
-    getMe(user: AuthUser): Promise<Record<string, any>>;
+    getMe(user: AuthUser): Promise<Record<string, unknown>>;
     findOne(id: string): Promise<Record<string, any>>;
     update(id: string, dto: UpdateUserDto): Promise<Record<string, any> | undefined>;
     remove(id: string): Promise<{
