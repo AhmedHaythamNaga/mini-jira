@@ -106,7 +106,11 @@ export class TasksService {
         }
       };
 
-      addItems(await this.findByAssignee(user.userId));
+      try {
+        addItems(await this.findByAssignee(user.userId));
+      } catch (err) {
+        console.error('findByAssignee failed (GSI may be missing):', (err as Error).message);
+      }
 
       for (const teamKey of teamKeys) {
         for (const indexName of ['teamID-index', 'teamId-index']) {
