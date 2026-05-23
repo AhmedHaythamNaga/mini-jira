@@ -168,14 +168,16 @@ function toTeamName(teamId: string | undefined, teams: BackendTeam[] = []) {
 
 function normalizeUser(user: BackendUser, teams: BackendTeam[] = []): User {
   const displayName = user.name ?? user.email ?? "User";
+  const teamId =
+    user.teamID ?? (user as { teamId?: string }).teamId ?? undefined;
   return {
     id: user.userID,
     name: displayName,
     email: user.email,
     password: "",
     role: (user.role as User["role"]) ?? "employee",
-    teamId: user.teamID,
-    team: toTeamName(user.teamID, teams),
+    teamId,
+    team: toTeamName(teamId, teams),
     avatar: displayName
       .split(" ")
       .filter(Boolean)
@@ -185,11 +187,18 @@ function normalizeUser(user: BackendUser, teams: BackendTeam[] = []): User {
   };
 }
 
+function readBackendTeamId(
+  task: BackendTask & { teamId?: string },
+): string | undefined {
+  return task.teamID ?? task.teamId;
+}
+
 function normalizeTask(
   task: BackendTask,
   users: User[],
   teams: BackendTeam[],
 ): Task {
+  const teamId = readBackendTeamId(task);
   const assignee = users.find((user) => user.id === task.assigneeID);
   return {
     id: task.taskID,
@@ -197,8 +206,8 @@ function normalizeTask(
     description: task.description ?? "",
     priority: normalizePriority(task.priority),
     status: normalizeStatus(task.status),
-    team: toTeamName(task.teamID, teams),
-    teamId: task.teamID,
+    team: toTeamName(teamId, teams),
+    teamId: teamId ?? "",
     assigneeId: task.assigneeID ?? "",
     assigneeName: assignee?.name ?? "Unassigned",
     projectId: task.projectID ?? "",

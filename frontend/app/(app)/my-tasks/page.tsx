@@ -34,7 +34,7 @@ export default function MyTasksPage() {
     const filtered = tasks.filter(
       (task) =>
         isTaskAssignedToUser(task, user, users) &&
-        filterTaskByScope(task, user, teamFilter) &&
+        filterTaskByScope(task, user, teamFilter, users) &&
         matchesSearch(task, searchQuery),
     );
 

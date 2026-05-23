@@ -8,7 +8,7 @@ import { TaskFormModal } from "@/components/task-form-modal";
 import { canManageAll, filterTaskByScope, matchesSearch } from "@/lib/utils";
 
 export default function DashboardPage() {
-  const { user, tasks, teams, teamFilter, searchQuery } = useApp();
+  const { user, tasks, teams, users, teamFilter, searchQuery } = useApp();
   const [createOpen, setCreateOpen] = useState(false);
   const displayName = user?.name ?? user?.email ?? "User";
   const canCreateTask = canManageAll(user);
@@ -17,10 +17,10 @@ export default function DashboardPage() {
     () =>
       tasks.filter(
         (task) =>
-          filterTaskByScope(task, user, teamFilter) &&
+          filterTaskByScope(task, user, teamFilter, users) &&
           matchesSearch(task, searchQuery),
       ),
-    [searchQuery, tasks, teamFilter, user],
+    [searchQuery, tasks, teamFilter, user, users],
   );
 
   return (

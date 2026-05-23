@@ -17,7 +17,7 @@ const columns: { status: TaskStatus; label: string }[] = [
 ];
 
 export default function BoardPage() {
-  const { user, tasks, teams, teamFilter, searchQuery, updateTaskStatus, ready } = useApp();
+  const { user, tasks, teams, users, teamFilter, searchQuery, updateTaskStatus, ready } = useApp();
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -27,12 +27,12 @@ export default function BoardPage() {
   const boardTasks = useMemo(
     () =>
       tasks.filter((task) => {
-        const matchesTeam = filterTaskByScope(task, user, teamFilter);
+        const matchesTeam = filterTaskByScope(task, user, teamFilter, users);
         const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
         const matchesLocalTeam = teamScope === 'all' || task.team === teamScope;
         return matchesTeam && matchesPriority && matchesLocalTeam && matchesSearch(task, searchQuery);
       }),
-    [priorityFilter, searchQuery, teamFilter, tasks, teamScope, user]
+    [priorityFilter, searchQuery, teamFilter, tasks, teamScope, user, users]
   );
 
   const onDropToStatus = (status: TaskStatus) => {

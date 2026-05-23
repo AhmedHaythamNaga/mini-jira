@@ -119,10 +119,24 @@ export function isTaskAssignedToUser(
   return false;
 }
 
+export function employeeSeesTask(
+  task: Task,
+  user: User,
+  users: User[] = [],
+) {
+  if (user.teamId && task.teamId && task.teamId === user.teamId) return true;
+  if (user.teamId && task.team === user.teamId) return true;
+  if (user.team && task.teamId && user.team === task.teamId) return true;
+  if (user.team && task.team && task.team === user.team) return true;
+  if (!task.teamId && (task.team === "All" || !task.team)) return true;
+  return isTaskAssignedToUser(task, user, users);
+}
+
 export function filterTaskByScope(
   task: Task,
   user: User | null,
   teamFilter: TeamName,
+  users: User[] = [],
 ) {
   if (!user) return false;
   if (user.role === "manager" || user.role === "admin") {
@@ -130,11 +144,7 @@ export function filterTaskByScope(
       teamFilter === "All" || task.team === teamFilter || task.team === "All"
     );
   }
-  return (
-    task.team === user.team ||
-    task.team === "All" ||
-    isTaskAssignedToUser(task, user)
-  );
+  return employeeSeesTask(task, user, users);
 }
 
 export function matchesSearch(task: Task, query: string) {
