@@ -3,6 +3,7 @@
 import {
   createContext,
   ReactNode,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -601,7 +602,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toast.success("Task deleted successfully");
   };
 
-  const refreshTeams = async () => {
+  const refreshTeams = useCallback(async () => {
     if (!session) return;
     if (session.user.role !== "manager" && session.user.role !== "admin")
       return;
@@ -630,7 +631,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       console.error(error);
       toast.error("Could not refresh teams list");
     }
-  };
+  }, [session]);
 
   const createTask = async (input: CreateTaskInput, imageFile?: File) => {
     if (!session) return false;

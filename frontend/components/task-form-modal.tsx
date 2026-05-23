@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ImagePlus, X } from "lucide-react";
 import { useApp } from "@/lib/app-state";
 import { CreateTaskInput } from "@/lib/types";
@@ -13,7 +13,6 @@ interface TaskFormModalProps {
 
 export function TaskFormModal({ open, onClose }: TaskFormModalProps) {
   const { createTask, users, user, projects, teams, refreshTeams } = useApp();
-  const initializedRef = useRef(false);
   const [form, setForm] = useState<CreateTaskInput>({
     title: "",
     description: "",
@@ -55,45 +54,71 @@ export function TaskFormModal({ open, onClose }: TaskFormModalProps) {
       setImageFile(null);
       setImagePreview(null);
       setSubmitting(false);
-      initializedRef.current = false;
       return;
     }
-
-    setTeamsLoading(true);
-    void refreshTeams().finally(() => setTeamsLoading(false));
-  }, [open, refreshTeams]);
-
-  useEffect(() => {
-    if (!open || teamsLoading || initializedRef.current) return;
-
-    const initialTeamId = teams[0]?.id ?? "";
-    const initialTeam = teams.find((team) => team.id === initialTeamId);
-    const matchingProjects = initialTeam
-      ? projects.filter(
-          (project) =>
-            project.team === initialTeam.name || project.team === "All",
-        )
-      : [];
-    const matchingUsers = initialTeam
-      ? users.filter(
-          (item) =>
-            item.teamId === initialTeam.id ||
-            item.team === initialTeam.name ||
-            item.teamId === initialTeam.name,
-        )
-      : users;
 
     setForm({
       title: "",
       description: "",
       priority: "medium",
-      assigneeId: matchingUsers[0]?.id ?? user?.id ?? "",
-      teamId: initialTeamId,
-      projectId: matchingProjects[0]?.id ?? "",
+      assigneeId: "",
+      teamId: "",
+      projectId: "",
       deadline: new Date().toISOString().slice(0, 10),
     });
-    initializedRef.current = true;
-  }, [open, teamsLoading, teams, projects, users, user?.id]);
+    setTeamsLoading(true);
+    void refreshTeams().finally(() => setTeamsLoading(false));
+  }, [open, refreshTeams]);
+
+  useEffect(() => {
+    if (!open || teamsLoading) return;
+
+    const validTeams = teams.filter((team) => team.id);
+    if (!validTeams.length) return;
+
+    const teamId =
+      form.teamId && validTeams.some((team) => team.id === form.teamId)
+        ? form.teamId
+        : validTeams[0].id;
+    const team = validTeams.find((item) => item.id === teamId);
+    const matchingProjects = team
+      ? projects.filter(
+          (project) =>
+            project.team === team.name || project.team === "All",
+        )
+      : [];
+    const matchingUsers = team
+      ? users.filter(
+          (item) =>
+            item.teamId === team.id ||
+            item.team === team.name ||
+            item.teamId === team.name,
+        )
+      : users;
+
+    setForm((current) => {
+      const assigneeId =
+        current.assigneeId &&
+        matchingUsers.some((item) => item.id === current.assigneeId)
+          ? current.assigneeId
+          : (matchingUsers[0]?.id ?? user?.id ?? "");
+      const projectId =
+        current.projectId &&
+        matchingProjects.some((project) => project.id === current.projectId)
+          ? current.projectId
+          : (matchingProjects[0]?.id ?? "");
+
+      if (
+        current.teamId === teamId &&
+        current.assigneeId === assigneeId &&
+        current.projectId === projectId
+      ) {
+        return current;
+      }
+
+      return { ...current, teamId, assigneeId, projectId };
+    });
+  }, [open, teamsLoading, teams, projects, users, user?.id, form.teamId]);
 
   useEffect(() => {
     if (!open || !form.teamId) return;
@@ -235,11 +260,13 @@ export function TaskFormModal({ open, onClose }: TaskFormModalProps) {
                   No teams — create one in Admin first
                 </option>
               ) : null}
-              {teams.map((team) => (
-                <option key={team.id} value={team.id}>
-                  {team.name}
-                </option>
-              ))}
+              {teams
+                .filter((team) => team.id)
+                .map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.name}
+                  </option>
+                ))}
             </select>
           </label>
           <label>
@@ -353,7 +380,7 @@ export function TaskFormModal({ open, onClose }: TaskFormModalProps) {
             <button
               type="submit"
               className="button button--primary"
-              disabled={submitting || !form.teamId || teamsLoading}
+              disabled={submitting || !form.teamId}
             >
               {submitting ? "Creating…" : "Create Task"}
             </button>
