@@ -4,7 +4,9 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bodyParser: false, // disable default 100KB limit
+  });
 
   // Allow large base64 image uploads (up to 10 MB)
   app.useBodyParser('json', { limit: '10mb' });

@@ -91,12 +91,25 @@ export class TasksService {
   }
 
   async findAll(user: AuthUser) {
+    console.log('[findAll] user:', JSON.stringify({
+      userId: user.userId,
+      role: user.role,
+      teamId: user.teamId,
+    }));
+
     if (user.role === 'employee') {
-      const teamKeys = await resolveTeamKeys(
-        this.dynamo,
-        this.teamsTable,
-        user.teamId,
-      );
+      let teamKeys: string[] = [];
+      try {
+        teamKeys = await resolveTeamKeys(
+          this.dynamo,
+          this.teamsTable,
+          user.teamId,
+        );
+      } catch (err) {
+        console.error('[findAll] resolveTeamKeys failed:', (err as Error).message);
+      }
+      console.log('[findAll] teamKeys:', teamKeys);
+
       const byId = new Map<string, Record<string, unknown>>();
 
       const addItems = (items: Record<string, unknown>[]) => {
@@ -109,9 +122,10 @@ export class TasksService {
       try {
         addItems(await this.findByAssignee(user.userId));
       } catch (err) {
-        console.error('findByAssignee failed (GSI may be missing):', (err as Error).message);
+        console.error('[findAll] findByAssignee failed (GSI may be missing):', (err as Error).message);
       }
 
+      // GSI queries (all optional — table may not have these indexes)
       for (const teamKey of teamKeys) {
         for (const indexName of ['teamID-index', 'teamId-index']) {
           try {
@@ -144,23 +158,31 @@ export class TasksService {
         }
       }
 
-      const scanned = await this.dynamo.send(
-        new ScanCommand({ TableName: this.tableName }),
-      );
-      for (const item of (scanned.Items || []) as Record<string, unknown>[]) {
-        const assignee =
-          (item.assigneeID as string | undefined) ??
-          (item.assigneeId as string | undefined);
-        const visible =
-          assignee === user.userId ||
-          recordMatchesTeamKeys(item, teamKeys) ||
-          (!user.teamId && !readRecordTeamId(item));
-        if (visible) {
-          const id = (item.taskID as string) ?? (item.taskId as string);
-          if (id) byId.set(id, item);
+      // Fallback: full table scan with visibility filter
+      try {
+        const scanned = await this.dynamo.send(
+          new ScanCommand({ TableName: this.tableName }),
+        );
+        console.log('[findAll] scan returned', (scanned.Items || []).length, 'items');
+        for (const item of (scanned.Items || []) as Record<string, unknown>[]) {
+          const assignee =
+            (item.assigneeID as string | undefined) ??
+            (item.assigneeId as string | undefined);
+          const itemTeamId = readRecordTeamId(item);
+          const visible =
+            assignee === user.userId ||
+            recordMatchesTeamKeys(item, teamKeys) ||
+            (!user.teamId && !itemTeamId);
+          if (visible) {
+            const id = (item.taskID as string) ?? (item.taskId as string);
+            if (id) byId.set(id, item);
+          }
         }
+      } catch (err) {
+        console.error('[findAll] scan failed:', (err as Error).message);
       }
 
+      console.log('[findAll] returning', byId.size, 'tasks for employee');
       return Array.from(byId.values());
     }
 
