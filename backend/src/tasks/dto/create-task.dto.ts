@@ -21,8 +21,7 @@ export class CreateTaskDto {
   assigneeID?: string;
 
   @IsString()
-  @IsOptional()
-  teamID?: string;
+  teamID!: string;
 
   @IsString()
   @IsOptional()

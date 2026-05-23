@@ -41,6 +41,10 @@ let TasksService = class TasksService {
         this.cloudwatch = new client_cloudwatch_1.CloudWatchClient({ region });
     }
     async create(dto, user) {
+        const teamID = dto.teamID?.trim();
+        if (!teamID) {
+            throw new common_1.BadRequestException('teamID is required');
+        }
         const now = new Date().toISOString();
         const task = {
             taskID: (0, uuid_1.v4)(),
@@ -49,8 +53,8 @@ let TasksService = class TasksService {
             status: 'To Do',
             priority: dto.priority || 'medium',
             deadline: dto.deadline || '',
-            assigneeID: dto.assigneeID || '',
-            teamID: dto.teamID || '',
+            assigneeID: dto.assigneeID?.trim() || '',
+            teamID,
             projectID: dto.projectID || '',
             imageKey: '',
             resizedImageKey: '',

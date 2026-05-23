@@ -5,7 +5,7 @@ import { ArrowDownAZ, ArrowDownWideNarrow, Funnel } from 'lucide-react';
 import { TaskDetailModal } from '@/components/task-detail-modal';
 import { useApp } from '@/lib/app-state';
 import { Task } from '@/lib/types';
-import { filterTaskByScope, formatDate, isTaskAssignedToUser, matchesSearch, parseDateSafe, priorityLabel, priorityOrder, statusLabel, taskIsOverdue } from '@/lib/utils';
+import { filterTaskByScope, formatDate, matchesSearch, parseDateSafe, priorityLabel, priorityOrder, statusLabel, taskIsOverdue } from '@/lib/utils';
 
 type SortKey = 'deadline' | 'priority' | 'status';
 
@@ -33,7 +33,6 @@ export default function MyTasksPage() {
 
     const filtered = tasks.filter(
       (task) =>
-        isTaskAssignedToUser(task, user, users) &&
         filterTaskByScope(task, user, teamFilter, users) &&
         matchesSearch(task, searchQuery),
     );
@@ -60,7 +59,7 @@ export default function MyTasksPage() {
       <div className="page__header">
         <div>
           <h1>My Tasks</h1>
-          <p>Everything assigned to you, sorted the way you want.</p>
+          <p>Tasks for your team, sorted the way you want.</p>
         </div>
         <div className="page__header-actions">
           <button className={`button ${sortKey === 'deadline' ? 'button--primary' : 'button--secondary'}`} onClick={() => setSortKey('deadline')}>

@@ -184,7 +184,7 @@ export function TaskDetailModal({ task, open, onClose }: TaskDetailModalProps) {
                 <h3>Details</h3>
                 <dl>
                   <div>
-                    <dt>Assignee</dt>
+                    <dt>Assignment</dt>
                     <dd>{task.assigneeName}</dd>
                   </div>
                   <div>

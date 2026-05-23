@@ -52,6 +52,11 @@ export class TasksService {
   }
 
   async create(dto: CreateTaskDto, user: AuthUser) {
+    const teamID = dto.teamID?.trim();
+    if (!teamID) {
+      throw new BadRequestException('teamID is required');
+    }
+
     const now = new Date().toISOString();
     const task = {
       taskID: uuidv4(),
@@ -60,8 +65,8 @@ export class TasksService {
       status: 'To Do',
       priority: dto.priority || 'medium',
       deadline: dto.deadline || '',
-      assigneeID: dto.assigneeID || '',
-      teamID: dto.teamID || '',
+      assigneeID: dto.assigneeID?.trim() || '',
+      teamID,
       projectID: dto.projectID || '',
       imageKey: '',
       resizedImageKey: '',

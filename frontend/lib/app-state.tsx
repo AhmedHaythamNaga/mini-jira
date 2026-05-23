@@ -199,17 +199,22 @@ function normalizeTask(
   teams: BackendTeam[],
 ): Task {
   const teamId = readBackendTeamId(task);
-  const assignee = users.find((user) => user.id === task.assigneeID);
+  const teamLabel = toTeamName(teamId, teams);
+  const assignee = task.assigneeID
+    ? users.find((user) => user.id === task.assigneeID)
+    : undefined;
   return {
     id: task.taskID,
     title: task.title,
     description: task.description ?? "",
     priority: normalizePriority(task.priority),
     status: normalizeStatus(task.status),
-    team: toTeamName(teamId, teams),
+    team: teamLabel,
     teamId: teamId ?? "",
     assigneeId: task.assigneeID ?? "",
-    assigneeName: assignee?.name ?? "Unassigned",
+    assigneeName:
+      assignee?.name ??
+      (teamLabel !== "All" ? `${teamLabel} (team)` : "Team-wide"),
     projectId: task.projectID ?? "",
     deadline: sanitizeDeadline(task.deadline),
     createdAt: task.createdAt ?? new Date().toISOString(),
@@ -671,13 +676,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const createTask = async (input: CreateTaskInput, imageFile?: File) => {
     if (!session) return false;
-    const teamId = input.teamId || state.user?.teamId || "";
+    const teamId = input.teamId?.trim();
+    if (!teamId) {
+      toast.error("Select a team for this task");
+      return false;
+    }
     const body = {
       title: input.title,
       description: input.description,
       priority: input.priority === "urgent" ? "critical" : input.priority,
       deadline: input.deadline,
-      assigneeID: input.assigneeId,
       teamID: teamId,
       ...(input.projectId ? { projectID: input.projectId } : {}),
     };
