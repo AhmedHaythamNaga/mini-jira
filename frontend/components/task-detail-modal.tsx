@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from 'react';
-import { CalendarDays, Edit3, Paperclip, Save, ShieldAlert, Trash2, X } from 'lucide-react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { CalendarDays, Edit3, ImageIcon, Paperclip, Save, ShieldAlert, Trash2, X } from 'lucide-react';
 import { Task } from '@/lib/types';
 import { useApp } from '@/lib/app-state';
+import { apiGetTaskImageUrl } from '@/lib/backend-api';
 import { formatDate, initials, priorityStyle, statusLabel, statusStyle, taskIsOverdue, teamStyle } from '@/lib/utils';
 
 interface TaskDetailModalProps {
@@ -18,6 +19,23 @@ export function TaskDetailModal({ task, open, onClose }: TaskDetailModalProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Task | null>(task);
   const [comment, setComment] = useState('');
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageLoading, setImageLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open || !task?.imageKey) {
+      setImageUrl(null);
+      return;
+    }
+    const stored = typeof window !== 'undefined' ? window.localStorage.getItem('mini-jira-session') : null;
+    if (!stored) return;
+    const session = JSON.parse(stored) as { tokens: { idToken: string } };
+    setImageLoading(true);
+    apiGetTaskImageUrl(session.tokens.idToken, task.id, 'original')
+      .then((res) => setImageUrl(res.imageUrl))
+      .catch(() => setImageUrl(null))
+      .finally(() => setImageLoading(false));
+  }, [open, task?.id, task?.imageKey]);
 
   const relatedComments = useMemo(() => comments.filter((item) => item.taskId === task?.id), [comments, task?.id]);
   const relatedActivities = useMemo(() => activities.filter((item) => item.taskId === task?.id), [activities, task?.id]);
@@ -205,12 +223,21 @@ export function TaskDetailModal({ task, open, onClose }: TaskDetailModalProps) {
               </div>
 
               <div className="detail-card">
-                <h3>Checklist</h3>
-                <ul className="checklist">
-                  <li>Editable title and description</li>
-                  <li>Comments and activity feed</li>
-                  <li>Attachments ready for upload integration</li>
-                </ul>
+                <h3>Task Image</h3>
+                {imageLoading ? (
+                  <p className="muted">Loading image…</p>
+                ) : imageUrl ? (
+                  <img
+                    src={imageUrl}
+                    alt={`Image for ${task.title}`}
+                    style={{ width: '100%', borderRadius: '8px', marginTop: '8px' }}
+                  />
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '24px 0', color: 'var(--color-text-muted, #888)' }}>
+                    <ImageIcon size={32} />
+                    <p className="muted">No image attached</p>
+                  </div>
+                )}
               </div>
             </aside>
           </div>

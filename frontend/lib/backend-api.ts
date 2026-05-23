@@ -240,6 +240,10 @@ export function apiGetTaskUploadUrl(token: string, taskId: string) {
   return requestJson<{ uploadUrl: string; imageKey: string }>(`/tasks/${taskId}/upload-url`, {}, token);
 }
 
+export function apiGetTaskImageUrl(token: string, taskId: string, variant: 'original' | 'resized' = 'resized') {
+  return requestJson<{ imageUrl: string | null }>(`/tasks/${taskId}/image?variant=${variant}`, {}, token);
+}
+
 export function apiAttachTaskImage(token: string, taskId: string, imageKey: string) {
   return requestJson<BackendTask>(`/tasks/${taskId}/image`, {
     method: 'PUT',
