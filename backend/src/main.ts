@@ -1,14 +1,14 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
-import { json, urlencoded } from 'express';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // Allow large base64 image uploads (up to 10 MB)
-  app.use(json({ limit: '10mb' }));
-  app.use(urlencoded({ extended: true, limit: '10mb' }));
+  app.useBodyParser('json', { limit: '10mb' });
+  app.useBodyParser('urlencoded', { limit: '10mb', extended: true });
 
   app.enableCors({
     origin: '*',
