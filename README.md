@@ -1,3 +1,5 @@
+[Demo Video](https://drive.google.com/file/d/1otMs-Zts_YaSMIbh4WsfOHlsoueCd47k/view?usp=sharing)
+
 # Mini-Jira on AWS - Architecture
 
 This document describes the target AWS architecture for Mini-Jira, aligned with the project requirements and the deployment guide.
